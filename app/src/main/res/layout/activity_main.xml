@@ -26,4 +26,9 @@
         android:textSize="36sp"
         android:background="@android:color/darker_gray"/>
 
+    <SurfaceView
+        android:id="@+id/surface"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content" />
+
 </RelativeLayout>

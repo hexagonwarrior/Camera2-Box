@@ -9,8 +9,14 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.ImageFormat;
 import android.graphics.Matrix;
+import android.graphics.Paint;
+import android.graphics.PixelFormat;
+import android.graphics.PorterDuff;
+import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
@@ -33,6 +39,8 @@ import android.util.Log;
 import android.util.Size;
 import android.util.SparseIntArray;
 import android.view.Surface;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
 import android.view.TextureView;
 import android.view.View;
 import android.widget.TextView;
@@ -61,9 +69,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
+import static java.lang.Thread.sleep;
+
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "Camera2Test";
+    private static final String TAG2 = "MINMAX";
 
     private static final int REQUEST_CAMERA_PERMISSION = 200;
     private static final SparseIntArray ORIENTATIONS = new SparseIntArray();
@@ -75,6 +86,9 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private TextureView mTextureView;
+    private SurfaceView mSurfaceView;
+    private SurfaceHolder mSurfaceHolder;
+
     @SuppressWarnings("FieldCanBeLocal")
     private TextView mButton;
 
@@ -92,6 +106,14 @@ public class MainActivity extends AppCompatActivity {
     private Size mPreviewSize;
     private Size mPictureSize;
 
+    private int mx1;
+    private int my1;
+    private int mx2;
+    private int my2;
+
+    private int mImageWidth;
+    private int mImageHeight;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -100,6 +122,7 @@ public class MainActivity extends AppCompatActivity {
         Log.d(TAG, "onCreate()");
 
         mTextureView = findViewById(R.id.texture);
+        mSurfaceView = findViewById(R.id.surface);
 
         mButton = findViewById(R.id.button);
         mButton.setOnClickListener(new View.OnClickListener() {
@@ -109,6 +132,11 @@ public class MainActivity extends AppCompatActivity {
                 createSessionForTakingPicture();
             }
         });
+
+        mSurfaceView.setZOrderOnTop(true);//处于顶层
+        mSurfaceView.getHolder().setFormat(PixelFormat.TRANSPARENT);//设置surface为透明
+        mSurfaceHolder = mSurfaceView.getHolder();
+
     }
 
     @Override
@@ -175,6 +203,7 @@ public class MainActivity extends AppCompatActivity {
             Log.d(TAG, "SurfaceTextureListener: texture available");
             setupPreviewAndImageReader();
             openCamera();
+            paintBox();
         }
 
         @Override
@@ -477,6 +506,9 @@ public class MainActivity extends AppCompatActivity {
         OutputStream outputStream = null;
 
         Image image = reader.acquireLatestImage();
+        mImageWidth = image.getWidth();
+        mImageHeight = image.getHeight();
+
         ByteBuffer buffer = image.getPlanes()[0].getBuffer();
         byte[] bytes = new byte[buffer.capacity()];
         buffer.get(bytes);
@@ -497,8 +529,8 @@ public class MainActivity extends AppCompatActivity {
                     String newFilename = saveScaledPicture(newImage);
 
                     String base64result = imageToBase64(newFilename);
-                    Log.i("newFilename.w = ", Integer.toString(newImage.getWidth()));
-                    Log.i("newFilename.h = ", Integer.toString(newImage.getHeight()));
+                    // Log.i(TAG2, "newFilename.w = " + Integer.toString(newImage.getWidth()));
+                    // Log.i(TAG2, "newFilename.h = " + Integer.toString(newImage.getHeight()));
 
                     sendPost(base64result);
 
@@ -521,6 +553,28 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    public void paintRect(int x1, int y1, int x2, int y2)
+    {
+        Log.i(TAG2, "new : " + x1 + " " + y1 + " " + x2 + " " + y2);
+
+        Paint mpaint = new Paint();
+        mpaint.setColor(Color.RED);
+        // mpaint.setAntiAlias(true);//去锯齿
+        mpaint.setStyle(Paint.Style.STROKE);//空心
+        // 设置paint的外框宽度
+        mpaint.setStrokeWidth(4f);
+
+        try {
+            Canvas canvas=new Canvas();
+            canvas = mSurfaceHolder.lockCanvas();
+            canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR); //清掉上一次的画框。
+            Rect r = new Rect(x1, y1, x2, y2);
+            canvas.drawRect(r, mpaint);
+            mSurfaceHolder.unlockCanvasAndPost(canvas);
+        } catch (Exception e) { // java.lang.NullPointerException: Attempt to invoke virtual method 'void android.graphics.Canvas.drawColor(int, android.graphics.PorterDuff$Mode)' on a null object reference
+            // e.printStackTrace();
+        }
+    }
 
     public static String imageToBase64(String path){
         if(TextUtils.isEmpty(path)){
@@ -589,19 +643,20 @@ public class MainActivity extends AppCompatActivity {
         try {
             // "results":[{"bbox":{"x1":123,"x2":424,"y1":183,"y2":491},"conf":"0.1255541890859604","name":"camarabox"}]}
             JSONObject jsonObject1 = new JSONObject(json);
-            Log.i("Json", json);
+            // Log.i(TAG2, json);
+
             JSONArray jsonArray = jsonObject1.getJSONArray("results"); // {"results":
             for (int i = 0; i < jsonArray.length(); i++) { // [
                 JSONObject jsonObject = (JSONObject) jsonArray.get(i); // {"bbox":{"x1":123,"x2":424,"y1":183,"y2":491},"conf":"0.1255541890859604","name":"camarabox"}
 
                 //x1 ,y1, x2, y2
                 JSONObject bbox = jsonObject.getJSONObject("bbox"); // x1":123,"x2":424,"y1":183,"y2":491
-                String x1 = bbox.getString("x1");
-                String y1 = bbox.getString("y1");
-                String x2 = bbox.getString("x2");
-                String y2 = bbox.getString("y2");
+                mx1 = bbox.getInt("x1");
+                my1 = bbox.getInt("y1");
+                mx2 = bbox.getInt("x2");
+                my2 = bbox.getInt("y2");
 
-                Log.i(TAG, " bbox = " + x1 + " " + y1 + " " + x2 + " " + y2);
+                // Log.i(TAG2, mx1 + " " + my1 + " " + mx2 + " " + my2);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -649,6 +704,7 @@ public class MainActivity extends AppCompatActivity {
                 } else {
                     Log.i(TAG, "POST Failed");
                 }
+                Log.i(TAG, "POST " + conn.getResponseCode());
 
             } catch (IOException e) {
                 e.printStackTrace();
@@ -662,6 +718,29 @@ public class MainActivity extends AppCompatActivity {
     private void sendPost(String param) {
         PostRun pr = new PostRun();
         pr.setParam(param);
+        Thread thread = new Thread(pr);
+        thread.start();
+    }
+
+    public class PaintRun implements Runnable {
+        @Override
+        public void run() {
+            // Log.d(TAG, "paintBox()");
+            while (true) {
+                try {
+                    paintRect(mx1 * mPreviewSize.getWidth() / 480, my1 * mPreviewSize.getHeight() / 640,
+                              mx2 * mPreviewSize.getWidth() / 480, my2 * mPreviewSize.getHeight() / 640);
+
+                    Thread.sleep(500);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+    private void paintBox() {
+        Log.d(TAG, "paintBox()");
+        PaintRun pr = new PaintRun();
         Thread thread = new Thread(pr);
         thread.start();
     }
