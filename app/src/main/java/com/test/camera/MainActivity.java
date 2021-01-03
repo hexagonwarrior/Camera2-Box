@@ -6,7 +6,9 @@ import androidx.core.app.ActivityCompat;
 
 import android.Manifest;
 import android.content.Context;
+import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
+import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -18,6 +20,10 @@ import android.graphics.PixelFormat;
 import android.graphics.PorterDuff;
 import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
@@ -114,6 +120,75 @@ public class MainActivity extends AppCompatActivity {
     private int mImageWidth;
     private int mImageHeight;
 
+    private SensorManager mSensorManager;
+    private Sensor mSensor;
+
+    private float timestamp = 0;
+    private float angle[] = new float[3];
+    private static final float NS2S = 1.0f / 1000000000.0f;
+    private float gx = 0,gy = 0,gz = 0;
+
+    private final SensorEventListener mSensorEventListener = new SensorEventListener() {
+        @Override
+        public void onSensorChanged(SensorEvent sensorEvent) {
+            if (sensorEvent.accuracy != 0) {
+                int type = sensorEvent.sensor.getType();
+                switch (type) {
+                    case Sensor.TYPE_GYROSCOPE:
+                        if (timestamp != 0) {
+                            final float dT = (sensorEvent.timestamp - timestamp) * NS2S;
+                            angle[0] += sensorEvent.values[0] * dT;
+                            angle[1] += sensorEvent.values[1] * dT;
+                            angle[2] += sensorEvent.values[2] * dT;
+
+                            float anglex = (float) Math.toDegrees(angle[0]);
+                            float angley = (float) Math.toDegrees(angle[1]);
+                            float anglez = (float) Math.toDegrees(angle[2]);
+
+                            // 横屏绕水平线旋转
+                            if(gx != 0){
+                                float c = gx - anglex;
+                                if(Math.abs(c) >= 0.5 ){
+                                    Log.d("================", "anglex------------>" + (gx - anglex));
+                                    gx = anglex;
+                                }
+
+                            }else{
+                                gx = anglex;
+                            }
+
+                            // 横屏绕垂线旋转
+                            if(gy != 0){
+                                float c = gy - angley;
+                                if(Math.abs(c) >= 0.5 ){
+                                    Log.d("================", "angley------------>" + (gy - angley));
+                                    gy = angley;
+                                }
+                            }else{
+                                gy = angley;
+                            }
+
+                            // 横屏绕中心点旋转
+                            if(gz != 0){
+                                Log.d("================", "anglex------------>" + (gz - anglez));
+                            }
+
+                            gz = anglez;
+
+                        }
+                        timestamp = sensorEvent.timestamp;
+                        break;
+                }
+            }
+        }
+
+        @Override
+        public void onAccuracyChanged(Sensor sensor, int i) {
+
+        }
+    };
+
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -137,6 +212,10 @@ public class MainActivity extends AppCompatActivity {
         mSurfaceView.getHolder().setFormat(PixelFormat.TRANSPARENT);//设置surface为透明
         mSurfaceHolder = mSurfaceView.getHolder();
 
+        mSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
+        mSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
+        mSensorManager.registerListener(mSensorEventListener, mSensor, SensorManager.SENSOR_DELAY_GAME);
+
     }
 
     @Override
@@ -152,6 +231,8 @@ public class MainActivity extends AppCompatActivity {
             Log.d(TAG, "onResume() texture NOT available");
             mTextureView.setSurfaceTextureListener(mTextureListener);
         }
+        mSensorManager.registerListener(mSensorEventListener, mSensor, SensorManager.SENSOR_DELAY_GAME);
+
     }
 
     @Override
@@ -176,6 +257,7 @@ public class MainActivity extends AppCompatActivity {
         closeCamera();
         stopBackgroundThread();
         super.onPause();
+        mSensorManager.unregisterListener(mSensorEventListener);
     }
 
     private void startBackgroundThread() {
@@ -323,6 +405,10 @@ public class MainActivity extends AppCompatActivity {
                 SurfaceTexture surfaceTexture = mTextureView.getSurfaceTexture();
                 surfaceTexture.setDefaultBufferSize(mPreviewSize.getWidth(),
                         mPreviewSize.getHeight());
+
+                Log.i(TAG, "mPreviewSize.getWidth" + Integer.toString(mPreviewSize.getWidth()));
+                Log.i(TAG, "mPreviewSize.getHeight" + Integer.toString(mPreviewSize.getHeight()));
+
                 mPreviewSurface = new Surface(surfaceTexture);
 
                 mPictureSize = new Size(640, 480);
@@ -525,7 +611,7 @@ public class MainActivity extends AppCompatActivity {
                 try {
                     outputStream.close();
 
-                    Bitmap newImage = resizeImage(oldBitmap,480, 640);
+                    Bitmap newImage = resizeImage(oldBitmap,640, 480);
                     String newFilename = saveScaledPicture(newImage);
 
                     String base64result = imageToBase64(newFilename);
@@ -555,7 +641,8 @@ public class MainActivity extends AppCompatActivity {
 
     public void paintRect(int x1, int y1, int x2, int y2)
     {
-        Log.i(TAG2, "new : " + x1 + " " + y1 + " " + x2 + " " + y2);
+        Log.i(TAG2, "predict original : " + mx1 + " " + my1 + " " + mx2 + " " + my2);
+        Log.i(TAG2, "predict rotate : " + x1 + " " + y1 + " " + x2 + " " + y2);
 
         Paint mpaint = new Paint();
         mpaint.setColor(Color.RED);
@@ -728,8 +815,12 @@ public class MainActivity extends AppCompatActivity {
             // Log.d(TAG, "paintBox()");
             while (true) {
                 try {
-                    paintRect(mx1 * mPreviewSize.getWidth() / 480, my1 * mPreviewSize.getHeight() / 640,
-                              mx2 * mPreviewSize.getWidth() / 480, my2 * mPreviewSize.getHeight() / 640);
+                    int x1 = my1 * mPreviewSize.getHeight() / 480;
+                    int y1 = (640 - mx2) * mPreviewSize.getWidth() / 640;
+                    int x2 = my2 * mPreviewSize.getHeight() / 480;
+                    int y2 = (640 - mx1) * mPreviewSize.getWidth() / 640;
+
+                    paintRect(x1, y1, x2, y2);
 
                     Thread.sleep(500);
                 } catch (InterruptedException e) {
