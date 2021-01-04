@@ -81,6 +81,7 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "Camera2Test";
     private static final String TAG2 = "MINMAX";
+    private static final int PACE = 5;
 
     private static final int REQUEST_CAMERA_PERMISSION = 200;
     private static final SparseIntArray ORIENTATIONS = new SparseIntArray();
@@ -112,10 +113,17 @@ public class MainActivity extends AppCompatActivity {
     private Size mPreviewSize;
     private Size mPictureSize;
 
+    // 保存从server返回的原始坐标
     private int mx1;
     private int my1;
     private int mx2;
     private int my2;
+
+    // 保存对原始坐标进行变换后的坐标
+    private int gx1;
+    private int gy1;
+    private int gx2;
+    private int gy2;
 
     private int mImageWidth;
     private int mImageHeight;
@@ -128,6 +136,8 @@ public class MainActivity extends AppCompatActivity {
     private static final float NS2S = 1.0f / 1000000000.0f;
     private float gx = 0,gy = 0,gz = 0;
 
+
+    // 屏向右x-，屏向左x+，屏向上y-，屏向下y+
     private final SensorEventListener mSensorEventListener = new SensorEventListener() {
         @Override
         public void onSensorChanged(SensorEvent sensorEvent) {
@@ -145,33 +155,47 @@ public class MainActivity extends AppCompatActivity {
                             float angley = (float) Math.toDegrees(angle[1]);
                             float anglez = (float) Math.toDegrees(angle[2]);
 
-                            // 横屏绕水平线旋转
+                            // 横屏绕垂线旋转
                             if(gx != 0){
                                 float c = gx - anglex;
                                 if(Math.abs(c) >= 0.5 ){
                                     Log.d("================", "anglex------------>" + (gx - anglex));
                                     gx = anglex;
+                                    if (anglex > 0) { // 手机屏向左偏
+                                        gy1 += PACE;
+                                        gy2 += PACE;
+                                    } else if (anglex < 0) {
+                                        gy1 -= PACE;
+                                        gy2 -= PACE;
+                                    }
                                 }
 
                             }else{
                                 gx = anglex;
                             }
 
-                            // 横屏绕垂线旋转
+                            // 横屏绕水平线旋转 按照键在右手
                             if(gy != 0){
                                 float c = gy - angley;
                                 if(Math.abs(c) >= 0.5 ){
                                     Log.d("================", "angley------------>" + (gy - angley));
                                     gy = angley;
+                                    if (angley > 0) { // 屏幕向下偏
+                                        gx1 += PACE;
+                                        gx2 += PACE;
+                                    } else if (angley < 0) { // 屏幕向上偏
+                                        gx1 -= PACE;
+                                        gx2 -= PACE;
+                                    }
                                 }
                             }else{
                                 gy = angley;
                             }
 
                             // 横屏绕中心点旋转
-                            if(gz != 0){
-                                Log.d("================", "anglex------------>" + (gz - anglez));
-                            }
+                            // if(gz != 0){
+                            //    Log.d("================", "anglex------------>" + (gz - anglez));
+                            // }
 
                             gz = anglez;
 
@@ -285,7 +309,9 @@ public class MainActivity extends AppCompatActivity {
             Log.d(TAG, "SurfaceTextureListener: texture available");
             setupPreviewAndImageReader();
             openCamera();
+            predictBox();
             paintBox();
+
         }
 
         @Override
@@ -363,7 +389,7 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onConfigured(@NonNull CameraCaptureSession session) {
             Log.d(TAG, "PictureSession StateCallback: onConfigured()");
-            requestDataForTakingPicture(session);
+            requestDataForTakingPicture(session); // 开始抓取图片
         }
 
         @Override
@@ -511,6 +537,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // 这个是解发相机进行抓取的回调函数
     private void requestDataForTakingPicture(@NonNull CameraCaptureSession session) {
         Log.d(TAG, "requestDataForTakingPicture()");
         try {
@@ -520,6 +547,7 @@ public class MainActivity extends AppCompatActivity {
             builder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
             builder.set(CaptureRequest.JPEG_ORIENTATION,
                     ORIENTATIONS.get(getWindowManager().getDefaultDisplay().getRotation()));
+            // 确定方向? FXIME
 
             session.capture(builder.build(), mPictureSessionCaptureCallback, mBackgroundHandler);
         } catch (CameraAccessException e) {
@@ -744,6 +772,21 @@ public class MainActivity extends AppCompatActivity {
                 my2 = bbox.getInt("y2");
 
                 // Log.i(TAG2, mx1 + " " + my1 + " " + mx2 + " " + my2);
+
+                // 将横屏逆时针转90度，进行坐标变换，
+                gx1 = my1 * mPreviewSize.getHeight() / 480;
+                gy1 = (640 - mx2) * mPreviewSize.getWidth() / 640;
+                gx2 = my2 * mPreviewSize.getHeight() / 480;
+                gy2 = (640 - mx1) * mPreviewSize.getWidth() / 640;
+
+                // 将横屏顺时针转90度，进行坐标变换，
+                /*
+                gx1 = (480- my2) * mPreviewSize.getHeight() / 480;
+                gy1 = (mx1) * mPreviewSize.getWidth() / 640;
+                gx2 = (480 - my1) * mPreviewSize.getHeight() / 480;
+                gy2 = (mx2) * mPreviewSize.getWidth() / 640;
+
+                 */
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -815,12 +858,9 @@ public class MainActivity extends AppCompatActivity {
             // Log.d(TAG, "paintBox()");
             while (true) {
                 try {
-                    int x1 = my1 * mPreviewSize.getHeight() / 480;
-                    int y1 = (640 - mx2) * mPreviewSize.getWidth() / 640;
-                    int x2 = my2 * mPreviewSize.getHeight() / 480;
-                    int y2 = (640 - mx1) * mPreviewSize.getWidth() / 640;
 
-                    paintRect(x1, y1, x2, y2);
+
+                    paintRect(gx1, gy1, gx2, gy2);
 
                     Thread.sleep(500);
                 } catch (InterruptedException e) {
@@ -836,4 +876,33 @@ public class MainActivity extends AppCompatActivity {
         thread.start();
     }
 
+    public class PredictRun implements Runnable {
+        @Override
+        public void run() {
+            Log.d(TAG, "PredictRun()");
+            while (true) {
+                try {
+                    Thread.sleep(500); // FXIME 需要加延时来保证camera is ready
+                    if (gx1 == 0 && gx2 == 0) {
+                        createSessionForTakingPicture();
+                    } else if (gx1 < 0 || gx2 < 0 || gy1 < 0 || gy2 < 0
+                        || gx1 > 3000 || gx2 > 3000 || gy1 > 4000 || gy2 > 40000) {
+                        createSessionForTakingPicture();
+
+
+                    }
+                    Thread.sleep(500); // FXIME 需要加延时来保证POST取得box坐标
+
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+    private void predictBox() {
+        Log.d(TAG, "predictBox()");
+        PredictRun pr = new PredictRun();
+        Thread thread = new Thread(pr);
+        thread.start();
+    }
 }
