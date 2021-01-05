@@ -81,7 +81,7 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "Camera2Test";
     private static final String TAG2 = "MINMAX";
-    private static final int PACE = 5;
+    private static final int PACE = 10;
 
     private static final int REQUEST_CAMERA_PERMISSION = 200;
     private static final SparseIntArray ORIENTATIONS = new SparseIntArray();
@@ -156,17 +156,23 @@ public class MainActivity extends AppCompatActivity {
                             float anglez = (float) Math.toDegrees(angle[2]);
 
                             // 横屏绕垂线旋转
-                            if(gx != 0){
+                            if(gx != 0){ // 左偏y+，右偏y-
                                 float c = gx - anglex;
                                 if(Math.abs(c) >= 0.5 ){
                                     Log.d("================", "anglex------------>" + (gx - anglex));
                                     gx = anglex;
                                     if (anglex > 0) { // 手机屏向左偏
-                                        gy1 += PACE;
-                                        gy2 += PACE;
+                                        if (gy1 + PACE <= mPreviewSize.getWidth() && gy2 + PACE <= mPreviewSize.getWidth()) {
+                                            gy1 += PACE;
+                                            gy2 += PACE;
+                                            Log.d("SENSOR", "gy1 " + gy1 + " gy2 " + gy2);
+                                        }
                                     } else if (anglex < 0) {
-                                        gy1 -= PACE;
-                                        gy2 -= PACE;
+                                        if (gy1 - PACE >= 0 && gy2 - PACE >= 0) {
+                                            gy1 -= PACE;
+                                            gy2 -= PACE;
+                                            Log.d("SENSOR", "gy1 " + gy1 + " gy2 " + gy2);
+                                        }
                                     }
                                 }
 
@@ -175,17 +181,23 @@ public class MainActivity extends AppCompatActivity {
                             }
 
                             // 横屏绕水平线旋转 按照键在右手
-                            if(gy != 0){
+                            if(gy != 0){ // 下偏x+，上偏x-
                                 float c = gy - angley;
                                 if(Math.abs(c) >= 0.5 ){
                                     Log.d("================", "angley------------>" + (gy - angley));
                                     gy = angley;
                                     if (angley > 0) { // 屏幕向下偏
-                                        gx1 += PACE;
-                                        gx2 += PACE;
+                                        if (gx1 + PACE <= mPreviewSize.getHeight() && gx2 + PACE <= mPreviewSize.getHeight()) {
+                                            gx1 += PACE;
+                                            gx2 += PACE;
+                                            Log.d("SENSOR", "gx1 " + gx1 + " gx2 " + gx2);
+                                        }
                                     } else if (angley < 0) { // 屏幕向上偏
-                                        gx1 -= PACE;
-                                        gx2 -= PACE;
+                                        if (gx1 - PACE >= 0 && gx2 - PACE >= 0) {
+                                            gx1 -= PACE;
+                                            gx2 -= PACE;
+                                            Log.d("SENSOR", "gx1 " + gx1 + " gx2 " + gx2);
+                                        }
                                     }
                                 }
                             }else{
@@ -677,14 +689,46 @@ public class MainActivity extends AppCompatActivity {
         // mpaint.setAntiAlias(true);//去锯齿
         mpaint.setStyle(Paint.Style.STROKE);//空心
         // 设置paint的外框宽度
-        mpaint.setStrokeWidth(4f);
+        mpaint.setStrokeWidth(10f);
 
         try {
             Canvas canvas=new Canvas();
             canvas = mSurfaceHolder.lockCanvas();
             canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR); //清掉上一次的画框。
             Rect r = new Rect(x1, y1, x2, y2);
+
+            int cameraCenter_x = mPreviewSize.getHeight() / 2;
+            int cameraCenter_y = mPreviewSize.getWidth() / 2;
+
+            int boxCenter_x = (x2 + x1) / 2; // landscope height
+            int boxCenter_y = (y2 + y1) / 2; // landscope width
+
+            // mpaint.setTextSize(40); // 还未确定效果 FIXME
+
+            if ((boxCenter_x < cameraCenter_x + 100 && boxCenter_x > cameraCenter_x - 100)
+                    && (boxCenter_y < cameraCenter_y + 100 && boxCenter_y > cameraCenter_y - 100)) {
+                mpaint.setColor(Color.GREEN);
+                canvas.drawText("X", boxCenter_x, boxCenter_y, mpaint);
+            } else if (boxCenter_x >= cameraCenter_x + 100) {
+                // move down
+                canvas.drawText("v", boxCenter_x, boxCenter_y, mpaint);
+
+            } else if (boxCenter_x <= cameraCenter_x - 100) {
+                // move up
+                canvas.drawText("^", boxCenter_x, boxCenter_y, mpaint);
+
+            } else if (boxCenter_y >= cameraCenter_y + 100) {
+                // move left
+                canvas.drawText("<", boxCenter_x, boxCenter_y, mpaint);
+
+            } else if (boxCenter_y <= cameraCenter_y - 100) {
+                // move right
+                canvas.drawText(">", boxCenter_x, boxCenter_y, mpaint);
+
+            }
+
             canvas.drawRect(r, mpaint);
+
             mSurfaceHolder.unlockCanvasAndPost(canvas);
         } catch (Exception e) { // java.lang.NullPointerException: Attempt to invoke virtual method 'void android.graphics.Canvas.drawColor(int, android.graphics.PorterDuff$Mode)' on a null object reference
             // e.printStackTrace();
@@ -858,11 +902,8 @@ public class MainActivity extends AppCompatActivity {
             // Log.d(TAG, "paintBox()");
             while (true) {
                 try {
-
-
                     paintRect(gx1, gy1, gx2, gy2);
-
-                    Thread.sleep(500);
+                    Thread.sleep(1);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
@@ -885,11 +926,6 @@ public class MainActivity extends AppCompatActivity {
                     Thread.sleep(500); // FXIME 需要加延时来保证camera is ready
                     if (gx1 == 0 && gx2 == 0) {
                         createSessionForTakingPicture();
-                    } else if (gx1 < 0 || gx2 < 0 || gy1 < 0 || gy2 < 0
-                        || gx1 > 3000 || gx2 > 3000 || gy1 > 4000 || gy2 > 40000) {
-                        createSessionForTakingPicture();
-
-
                     }
                     Thread.sleep(500); // FXIME 需要加延时来保证POST取得box坐标
 
