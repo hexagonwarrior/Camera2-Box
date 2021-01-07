@@ -49,6 +49,7 @@ import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.TextureView;
 import android.view.View;
+import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -82,6 +83,9 @@ public class MainActivity extends AppCompatActivity {
     private static final String TAG = "Camera2Test";
     private static final String TAG2 = "MINMAX";
     private static final int PACE = 10;
+
+    private static final int CHEIGHT = 1080;
+    private static final int CWIDTH = 1536;
 
     private static final int REQUEST_CAMERA_PERMISSION = 200;
     private static final SparseIntArray ORIENTATIONS = new SparseIntArray();
@@ -156,13 +160,13 @@ public class MainActivity extends AppCompatActivity {
                             float anglez = (float) Math.toDegrees(angle[2]);
 
                             // 横屏绕垂线旋转
-                            if(gx != 0){ // 左偏y+，右偏y-
+                            if (gx != 0){ // 左偏y+，右偏y-
                                 float c = gx - anglex;
-                                if(Math.abs(c) >= 0.5 ){
-                                    Log.d("================", "anglex------------>" + (gx - anglex));
+                                if (Math.abs(c) >= 0.2 ){
+                                    Log.d("ANGLE", "angleX = " + (gx - anglex));
                                     gx = anglex;
                                     if (anglex > 0) { // 手机屏向左偏
-                                        if (gy1 + PACE <= mPreviewSize.getWidth() && gy2 + PACE <= mPreviewSize.getWidth()) {
+                                        if (gy1 + PACE <= CWIDTH && gy2 + PACE <= CWIDTH) {
                                             gy1 += PACE;
                                             gy2 += PACE;
                                             Log.d("SENSOR", "gy1 " + gy1 + " gy2 " + gy2);
@@ -181,13 +185,13 @@ public class MainActivity extends AppCompatActivity {
                             }
 
                             // 横屏绕水平线旋转 按照键在右手
-                            if(gy != 0){ // 下偏x+，上偏x-
+                            if (gy != 0){ // 下偏x+，上偏x-
                                 float c = gy - angley;
-                                if(Math.abs(c) >= 0.5 ){
-                                    Log.d("================", "angley------------>" + (gy - angley));
+                                if (Math.abs(c) >= 0.2){
+                                    Log.d("ANGLE", "angleY = " + (gy - angley));
                                     gy = angley;
                                     if (angley > 0) { // 屏幕向下偏
-                                        if (gx1 + PACE <= mPreviewSize.getHeight() && gx2 + PACE <= mPreviewSize.getHeight()) {
+                                        if (gx1 + PACE <= CHEIGHT && gx2 + PACE <= CHEIGHT) {
                                             gx1 += PACE;
                                             gx2 += PACE;
                                             Log.d("SENSOR", "gx1 " + gx1 + " gx2 " + gx2);
@@ -206,7 +210,7 @@ public class MainActivity extends AppCompatActivity {
 
                             // 横屏绕中心点旋转
                             // if(gz != 0){
-                            //    Log.d("================", "anglex------------>" + (gz - anglez));
+                            //    Log.d("ANBLE", "angleZ = " + (gz - anglez));
                             // }
 
                             gz = anglez;
@@ -234,6 +238,10 @@ public class MainActivity extends AppCompatActivity {
 
         mTextureView = findViewById(R.id.texture);
         mSurfaceView = findViewById(R.id.surface);
+
+        // 调整预预览比例与图片一至
+        mTextureView.setLayoutParams(new RelativeLayout.LayoutParams(2048, 1536));
+        mSurfaceView.setLayoutParams(new RelativeLayout.LayoutParams(2048, 1536));
 
         mButton = findViewById(R.id.button);
         mButton.setOnClickListener(new View.OnClickListener() {
@@ -444,8 +452,8 @@ public class MainActivity extends AppCompatActivity {
                 surfaceTexture.setDefaultBufferSize(mPreviewSize.getWidth(),
                         mPreviewSize.getHeight());
 
-                Log.i(TAG, "mPreviewSize.getWidth" + Integer.toString(mPreviewSize.getWidth()));
-                Log.i(TAG, "mPreviewSize.getHeight" + Integer.toString(mPreviewSize.getHeight()));
+                Log.i(TAG, "mPreviewSize.getWidth = " + Integer.toString(mPreviewSize.getWidth()));
+                Log.i(TAG, "mPreviewSize.getHeight = " + Integer.toString(mPreviewSize.getHeight()));
 
                 mPreviewSurface = new Surface(surfaceTexture);
 
@@ -696,9 +704,10 @@ public class MainActivity extends AppCompatActivity {
             canvas = mSurfaceHolder.lockCanvas();
             canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR); //清掉上一次的画框。
             Rect r = new Rect(x1, y1, x2, y2);
+            Log.d("RECT", "rect = " + x1 + " " + y1 + " " + x2 + " " + y2);
 
-            int cameraCenter_x = mPreviewSize.getHeight() / 2;
-            int cameraCenter_y = mPreviewSize.getWidth() / 2;
+            int cameraCenter_x = CHEIGHT / 2;
+            int cameraCenter_y = CWIDTH / 2;
 
             int boxCenter_x = (x2 + x1) / 2; // landscope height
             int boxCenter_y = (y2 + y1) / 2; // landscope width
@@ -708,23 +717,22 @@ public class MainActivity extends AppCompatActivity {
             if ((boxCenter_x < cameraCenter_x + 100 && boxCenter_x > cameraCenter_x - 100)
                     && (boxCenter_y < cameraCenter_y + 100 && boxCenter_y > cameraCenter_y - 100)) {
                 mpaint.setColor(Color.GREEN);
-                canvas.drawText("X", boxCenter_x, boxCenter_y, mpaint);
+                // canvas.drawText("X", boxCenter_x, boxCenter_y, mpaint);
             } else if (boxCenter_x >= cameraCenter_x + 100) {
                 // move down
-                canvas.drawText("v", boxCenter_x, boxCenter_y, mpaint);
+                // canvas.drawText("v", boxCenter_x, boxCenter_y, mpaint);
 
             } else if (boxCenter_x <= cameraCenter_x - 100) {
                 // move up
-                canvas.drawText("^", boxCenter_x, boxCenter_y, mpaint);
+                // canvas.drawText("^", boxCenter_x, boxCenter_y, mpaint);
 
             } else if (boxCenter_y >= cameraCenter_y + 100) {
                 // move left
-                canvas.drawText("<", boxCenter_x, boxCenter_y, mpaint);
+                // canvas.drawText("<", boxCenter_x, boxCenter_y, mpaint);
 
             } else if (boxCenter_y <= cameraCenter_y - 100) {
                 // move right
-                canvas.drawText(">", boxCenter_x, boxCenter_y, mpaint);
-
+                // canvas.drawText(">", boxCenter_x, boxCenter_y, mpaint);
             }
 
             canvas.drawRect(r, mpaint);
@@ -818,10 +826,10 @@ public class MainActivity extends AppCompatActivity {
                 // Log.i(TAG2, mx1 + " " + my1 + " " + mx2 + " " + my2);
 
                 // 将横屏逆时针转90度，进行坐标变换，
-                gx1 = my1 * mPreviewSize.getHeight() / 480;
-                gy1 = (640 - mx2) * mPreviewSize.getWidth() / 640;
-                gx2 = my2 * mPreviewSize.getHeight() / 480;
-                gy2 = (640 - mx1) * mPreviewSize.getWidth() / 640;
+                gx1 = my1 * CHEIGHT / 480;
+                gy1 = (640 - mx2) * CWIDTH / 640;
+                gx2 = my2 * CHEIGHT / 480;
+                gy2 = (640 - mx1) * CWIDTH / 640;
 
                 // 将横屏顺时针转90度，进行坐标变换，
                 /*
