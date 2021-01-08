@@ -83,7 +83,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String TAG = "Camera2Test";
     private static final String TAG2 = "MINMAX";
     private static final int PACE = 5;
-    private static final double SENSITIVITY = 0.1; // SENSOR 陀螺仪的敏感度，值越小，敏感度越高，偿试过0.5，0.2，最后决定选0.1
+    private static final double SENSITIVITY = 0.2; // SENSOR 陀螺仪的敏感度，值越小，敏感度越高，偿试过0.5，0.2，最后决定选0.1
 
     private static final int CHEIGHT = 1080; // 这两个值是根据实测获得，FIXME
     private static final int CWIDTH = 1536; // 这两个值是根据实测获得，FIXME
