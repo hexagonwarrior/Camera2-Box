@@ -82,10 +82,10 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "Camera2Test";
     private static final String TAG2 = "MINMAX";
-    private static final int PACE = 10;
+    private static final int PACE = 5;
 
-    private static final int CHEIGHT = 1080;
-    private static final int CWIDTH = 1536;
+    private static final int CHEIGHT = 1080; // 这两个值是根据实测获得，FIXME
+    private static final int CWIDTH = 1536; // 这两个值是根据实测获得，FIXME
 
     private static final int REQUEST_CAMERA_PERMISSION = 200;
     private static final SparseIntArray ORIENTATIONS = new SparseIntArray();
