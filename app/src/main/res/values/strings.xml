@@ -1,4 +1,4 @@
 <resources>
-    <string name="app_name">Android-Camera2-Test</string>
-    <string name="take_picture">Take Picture</string>
+    <string name="app_name">云拍构图大师</string>
+    <string name="take_picture">TAKE</string>
 </resources>

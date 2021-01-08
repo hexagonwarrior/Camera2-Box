@@ -83,6 +83,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String TAG = "Camera2Test";
     private static final String TAG2 = "MINMAX";
     private static final int PACE = 5;
+    private static final double SENSITIVITY = 0.1; // SENSOR 陀螺仪的敏感度，值越小，敏感度越高，偿试过0.5，0.2，最后决定选0.1
 
     private static final int CHEIGHT = 1080; // 这两个值是根据实测获得，FIXME
     private static final int CWIDTH = 1536; // 这两个值是根据实测获得，FIXME
@@ -162,7 +163,7 @@ public class MainActivity extends AppCompatActivity {
                             // 横屏绕垂线旋转
                             if (gx != 0){ // 左偏y+，右偏y-
                                 float c = gx - anglex;
-                                if (Math.abs(c) >= 0.2 ){
+                                if (Math.abs(c) >= SENSITIVITY){
                                     Log.d("ANGLE", "angleX = " + (gx - anglex));
                                     gx = anglex;
                                     if (anglex > 0) { // 手机屏向左偏
@@ -187,7 +188,7 @@ public class MainActivity extends AppCompatActivity {
                             // 横屏绕水平线旋转 按照键在右手
                             if (gy != 0){ // 下偏x+，上偏x-
                                 float c = gy - angley;
-                                if (Math.abs(c) >= 0.2){
+                                if (Math.abs(c) >= SENSITIVITY){
                                     Log.d("ANGLE", "angleY = " + (gy - angley));
                                     gy = angley;
                                     if (angley > 0) { // 屏幕向下偏
