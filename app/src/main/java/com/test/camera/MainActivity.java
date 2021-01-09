@@ -139,7 +139,7 @@ public class MainActivity extends AppCompatActivity {
     private float timestamp = 0;
     private float angle[] = new float[3];
     private static final float NS2S = 1.0f / 1000000000.0f;
-    private float gx = 0,gy = 0,gz = 0;
+    private float sensorX = 0, sensorY = 0, sensorZ = 0; // sensor三个轴的偏斜
 
 
     // 屏向右x-，屏向左x+，屏向上y-，屏向下y+
@@ -160,61 +160,62 @@ public class MainActivity extends AppCompatActivity {
                             float angley = (float) Math.toDegrees(angle[1]);
                             float anglez = (float) Math.toDegrees(angle[2]);
 
-                            // 横屏绕垂线旋转
-                            if (gx != 0){ // 左偏y+，右偏y-
-                                float c = gx - anglex;
-                                if (Math.abs(c) >= SENSITIVITY){
-                                    Log.d("ANGLE", "angleX = " + (gx - anglex));
-                                    gx = anglex;
-                                    if (anglex > 0) { // 手机屏向左偏
+                            /*
+                            * anglex,angley,anglez都是一段时间步长内的角度变化
+                            * 但是因为程序不可能一直都是保持手机平稳
+                            * 所以为了使手机在偏斜时，框不至于跑出边界
+                            * 只是计算当前和上一次增量之间的差值关系
+                            * 记为deltaX,deltaY,deltaZ
+                            * 做为下一次移动的依据
+                            * 其中sensorX,sensorY,sensorZ都是上一次的角度变化
+                            * */
+
+                            // 横屏绕垂线旋转，因为是在竖屏画横屏的框，所以更新的是gy1,gy2
+                            if (sensorX != 0){ // 左偏y+，右偏y-
+                                float deltaX = sensorX - anglex; // 计算新的偏斜
+                                if (Math.abs(deltaX) >= SENSITIVITY){
+                                    Log.d("SENSOR_DELTA", "deltaX = " + deltaX);
+                                    if (deltaX < 0) { // 手机屏向左偏
                                         if (gy1 + PACE <= CWIDTH && gy2 + PACE <= CWIDTH) {
                                             gy1 += PACE;
                                             gy2 += PACE;
-                                            Log.d("SENSOR", "gy1 " + gy1 + " gy2 " + gy2);
                                         }
-                                    } else if (anglex < 0) {
+                                    } else if (deltaX > 0) {
                                         if (gy1 - PACE >= 0 && gy2 - PACE >= 0) {
                                             gy1 -= PACE;
                                             gy2 -= PACE;
-                                            Log.d("SENSOR", "gy1 " + gy1 + " gy2 " + gy2);
                                         }
                                     }
                                 }
-
-                            }else{
-                                gx = anglex;
                             }
+                            sensorX = anglex;
 
                             // 横屏绕水平线旋转 按照键在右手
-                            if (gy != 0){ // 下偏x+，上偏x-
-                                float c = gy - angley;
-                                if (Math.abs(c) >= SENSITIVITY){
-                                    Log.d("ANGLE", "angleY = " + (gy - angley));
-                                    gy = angley;
-                                    if (angley > 0) { // 屏幕向下偏
+                            if (sensorY != 0){ // 下偏x+，上偏x-
+                                float deltaY = sensorY - angley;
+                                if (Math.abs(deltaY) >= SENSITIVITY){
+                                    Log.d("SENSOR_DELTA", "new_sensory = " + deltaY);
+                                    if (deltaY < 0) { // 屏幕向下偏
                                         if (gx1 + PACE <= CHEIGHT && gx2 + PACE <= CHEIGHT) {
                                             gx1 += PACE;
                                             gx2 += PACE;
-                                            Log.d("SENSOR", "gx1 " + gx1 + " gx2 " + gx2);
                                         }
-                                    } else if (angley < 0) { // 屏幕向上偏
+                                    } else if (deltaY > 0) { // 屏幕向上偏
                                         if (gx1 - PACE >= 0 && gx2 - PACE >= 0) {
                                             gx1 -= PACE;
                                             gx2 -= PACE;
-                                            Log.d("SENSOR", "gx1 " + gx1 + " gx2 " + gx2);
                                         }
                                     }
                                 }
-                            }else{
-                                gy = angley;
                             }
+                            sensorY = angley;
 
                             // 横屏绕中心点旋转
                             // if(gz != 0){
                             //    Log.d("ANBLE", "angleZ = " + (gz - anglez));
                             // }
 
-                            gz = anglez;
+                            sensorZ = anglez;
 
                         }
                         timestamp = sensorEvent.timestamp;
@@ -844,7 +845,6 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) {
             e.printStackTrace();
         }
-
     }
 
 
