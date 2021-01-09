@@ -88,6 +88,8 @@ public class MainActivity extends AppCompatActivity {
     private static final int CHEIGHT = 1080; // 这两个值是根据实测获得，FIXME
     private static final int CWIDTH = 1536; // 这两个值是根据实测获得，FIXME
 
+    private static final int AUTO_TAKE_TIMER = 5000;
+
     private static final int REQUEST_CAMERA_PERMISSION = 200;
     private static final SparseIntArray ORIENTATIONS = new SparseIntArray();
     static {
@@ -251,6 +253,7 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View v) {
                 Log.d(TAG, "Taking picture button clicked.");
                 createSessionForTakingPicture();
+                Toast.makeText(MainActivity.this, "Picture saved.", Toast.LENGTH_SHORT).show();
             }
         });
 
@@ -333,6 +336,8 @@ public class MainActivity extends AppCompatActivity {
             openCamera();
             predictBox();
             paintBox();
+
+            AutoTakePhoto(); // FIXME 新增的自动拍设函数
 
         }
 
@@ -430,7 +435,7 @@ public class MainActivity extends AppCompatActivity {
                                                @NonNull TotalCaptureResult result) {
                     super.onCaptureCompleted(session, request, result);
                     Log.d(TAG, "PictureSession CaptureCallback: onCaptureCompleted()");
-                    Toast.makeText(MainActivity.this, "Picture saved.", Toast.LENGTH_SHORT).show();
+                    // Toast.makeText(MainActivity.this, "Picture saved.", Toast.LENGTH_SHORT).show();
                     createSessionForPreviewFlow();
                 }
             };
@@ -947,6 +952,29 @@ public class MainActivity extends AppCompatActivity {
     private void predictBox() {
         Log.d(TAG, "predictBox()");
         PredictRun pr = new PredictRun();
+        Thread thread = new Thread(pr);
+        thread.start();
+    }
+
+    public class TimerRun implements Runnable {
+        @Override
+        public void run() {
+            Log.d(TAG, "TimerRun()");
+            while (true) {
+                try {
+                    Thread.sleep(AUTO_TAKE_TIMER);
+                    createSessionForTakingPicture();
+                    Thread.sleep(1000);
+
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+    private void AutoTakePhoto() {
+        Log.d(TAG, "TimerRun()");
+        TimerRun pr = new TimerRun();
         Thread thread = new Thread(pr);
         thread.start();
     }
