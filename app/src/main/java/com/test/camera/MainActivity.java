@@ -31,6 +31,7 @@ import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.CaptureRequest;
+import android.hardware.camera2.CaptureResult;
 import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
@@ -44,6 +45,7 @@ import android.util.Base64;
 import android.util.Log;
 import android.util.Size;
 import android.util.SparseIntArray;
+import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
@@ -88,7 +90,7 @@ public class MainActivity extends AppCompatActivity {
     private static final int CHEIGHT = 1080; // 这两个值是根据实测获得，FIXME
     private static final int CWIDTH = 1536; // 这两个值是根据实测获得，FIXME
 
-    private static final int AUTO_TAKE_TIMER = 5000;
+    private static final int AUTO_TAKE_TIMER = 3000000;
 
     private static final int REQUEST_CAMERA_PERMISSION = 200;
     private static final SparseIntArray ORIENTATIONS = new SparseIntArray();
@@ -143,6 +145,11 @@ public class MainActivity extends AppCompatActivity {
     private static final float NS2S = 1.0f / 1000000000.0f;
     private float sensorX = 0, sensorY = 0, sensorZ = 0; // sensor三个轴的偏斜
 
+    // zoom code
+    private float finger_spacing = 0;
+    private int zoom_level = 1;
+    private CameraCaptureSession mPreviewSession = null;
+    private CaptureRequest.Builder mPreviewBuilder = null;
 
     // 屏向右x-，屏向左x+，屏向上y-，屏向下y+
     private final SensorEventListener mSensorEventListener = new SensorEventListener() {
@@ -373,6 +380,7 @@ public class MainActivity extends AppCompatActivity {
             Log.d(TAG, "CameraDevice.StateCallback onOpened()");
             mCameraDevice = camera;
             createSessionForPreviewFlow();
+            setuptexturetouch();
         }
 
         @Override
@@ -392,6 +400,7 @@ public class MainActivity extends AppCompatActivity {
 
     };
 
+    // 用来预览？
     private final CameraCaptureSession.StateCallback mPreviewSessionStateCallback =
             new CameraCaptureSession.StateCallback() {
         @Override
@@ -411,6 +420,7 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
+    // 用来拍照？
     private final CameraCaptureSession.StateCallback mPictureSessionStateCallback =
             new CameraCaptureSession.StateCallback() {
         @Override
@@ -425,8 +435,32 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
-    private final CameraCaptureSession.CaptureCallback mPreviewSessionCaptureCallback = null;
+    private final CameraCaptureSession.CaptureCallback mPreviewSessionCaptureCallback =
+            new CameraCaptureSession.CaptureCallback() {
 
+                private void process(CaptureResult result)
+                {
+                    // Just a placeholder at present - the original code
+                    // had switch statements to see if an image had been saved
+                    // but I only want to view, not save.
+                }
+
+                @Override
+                public void onCaptureProgressed(CameraCaptureSession session,
+                                                CaptureRequest request,
+                                                CaptureResult partialResult) {
+                    process(partialResult);
+                }
+
+                @Override
+                public void onCaptureCompleted(CameraCaptureSession session,
+                                               CaptureRequest request,
+                                               TotalCaptureResult result) {
+                    process(result);
+                }
+            };
+
+    // ？
     private final CameraCaptureSession.CaptureCallback mPictureSessionCaptureCallback =
             new CameraCaptureSession.CaptureCallback() {
                 @Override
@@ -518,6 +552,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // 从Camera请求数据用来预览
     protected void requestDataForPreviewFlow(@NonNull CameraCaptureSession session) {
         Log.d(TAG, "requestDataForPreviewFlow()");
         if (mCameraDevice == null) {
@@ -525,18 +560,23 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         try {
+
             final CaptureRequest.Builder builder =
                     mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
             builder.addTarget(mPreviewSurface);
             builder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
+            mPreviewSession = session;
+            mPreviewBuilder = builder;
 
             //noinspection ConstantConditions
+            // 不断的重复请求捕捉画面，常用于预览或者连拍场景。
             session.setRepeatingRequest(builder.build(), mPreviewSessionCaptureCallback, mBackgroundHandler);
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
     }
 
+    // 发送请求给相机设备进行拍照
     protected void createSessionForTakingPicture() {
         Log.d(TAG, "createSessionForTakingPicture()");
         if (mCameraManager == null || mCameraDevice == null) {
@@ -564,7 +604,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // 这个是解发相机进行抓取的回调函数
+    // 这个是触发相机进行抓取的回调函数
     private void requestDataForTakingPicture(@NonNull CameraCaptureSession session) {
         Log.d(TAG, "requestDataForTakingPicture()");
         try {
@@ -978,4 +1018,72 @@ public class MainActivity extends AppCompatActivity {
         Thread thread = new Thread(pr);
         thread.start();
     }
+
+    private void setuptexturetouch() {
+
+        mTextureView.setOnTouchListener(new View.OnTouchListener() {
+            @Override
+            public boolean onTouch (View v, MotionEvent event) {
+                try {
+                    // Activity activity = getActivity();
+                    // CameraManager manager = (CameraManager) activity.getSystemService(Context.CAMERA_SERVICE);
+                    CameraCharacteristics characteristics = mCameraManager.getCameraCharacteristics(mCameraID);
+                    float maxzoom = (characteristics.get(CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM)) * 10;
+
+                    Rect m = characteristics.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE);
+                    int action = event.getAction();
+                    float current_finger_spacing;
+
+                    if (event.getPointerCount() > 1) {
+                        // Multi touch logic
+
+                        current_finger_spacing = getFingerSpacing(event);
+                        if (finger_spacing != 0) {
+                            if (current_finger_spacing > finger_spacing && maxzoom > zoom_level) {
+                                zoom_level++;
+                            } else if (current_finger_spacing < finger_spacing && zoom_level > 1) {
+                                zoom_level--;
+                            }
+                            int minW = (int) (m.width() / maxzoom);
+                            int minH = (int) (m.height() / maxzoom);
+                            int difW = m.width() - minW;
+                            int difH = m.height() - minH;
+                            int cropW = difW / 100 * (int) zoom_level;
+                            int cropH = difH / 100 * (int) zoom_level;
+                            cropW -= cropW & 3;
+                            cropH -= cropH & 3;
+                            Rect zoom = new Rect(cropW, cropH, m.width() - cropW, m.height() - cropH);
+                            mPreviewBuilder.set(CaptureRequest.SCALER_CROP_REGION, zoom);
+                        }
+                        finger_spacing = current_finger_spacing;
+                        Log.d("TOUCH", "finger_spacing: " + finger_spacing);
+                    } else {
+                        if (action == MotionEvent.ACTION_UP) {
+                            //single touch logic
+                        }
+                    }
+
+                    try {
+                        mPreviewSession.setRepeatingRequest(mPreviewBuilder.build(), mPreviewSessionCaptureCallback, null);
+                    } catch (CameraAccessException e) {
+                        e.printStackTrace();
+                    } catch (NullPointerException ex) {
+                        ex.printStackTrace();
+                    }
+                } catch (CameraAccessException e) {
+                    throw new RuntimeException("can not access camera.", e);
+                }
+                return true;
+            }
+        });
+    }
+
+    //Determine the space between the first two fingers
+    private float getFingerSpacing(MotionEvent event) {
+        float x = event.getX(0) - event.getX(1);
+        float y = event.getY(0) - event.getY(1);
+        return (float) Math.sqrt(x * x + y * y);
+    }
+
+
 }
