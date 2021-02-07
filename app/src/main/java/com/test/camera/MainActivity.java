@@ -150,6 +150,7 @@ public class MainActivity extends AppCompatActivity {
     private int zoom_level = 1;
     private CameraCaptureSession mPreviewSession = null;
     private CaptureRequest.Builder mPreviewBuilder = null;
+    private boolean mPredictEnterCenter = false;
 
     // 屏向右x-，屏向左x+，屏向上y-，屏向下y+
     private final SensorEventListener mSensorEventListener = new SensorEventListener() {
@@ -343,9 +344,9 @@ public class MainActivity extends AppCompatActivity {
             openCamera();
             predictBox();
             paintBox();
+            autoZoom();
 
             AutoTakePhoto(); // FIXME 新增的自动拍设函数
-
         }
 
         @Override
@@ -764,22 +765,29 @@ public class MainActivity extends AppCompatActivity {
             if ((boxCenter_x < cameraCenter_x + 100 && boxCenter_x > cameraCenter_x - 100)
                     && (boxCenter_y < cameraCenter_y + 100 && boxCenter_y > cameraCenter_y - 100)) {
                 mpaint.setColor(Color.GREEN);
+                mPredictEnterCenter = true;
                 // canvas.drawText("X", boxCenter_x, boxCenter_y, mpaint);
             } else if (boxCenter_x >= cameraCenter_x + 100) {
                 // move down
                 // canvas.drawText("v", boxCenter_x, boxCenter_y, mpaint);
+                mPredictEnterCenter = false;
 
             } else if (boxCenter_x <= cameraCenter_x - 100) {
                 // move up
                 // canvas.drawText("^", boxCenter_x, boxCenter_y, mpaint);
+                mPredictEnterCenter = false;
 
             } else if (boxCenter_y >= cameraCenter_y + 100) {
                 // move left
                 // canvas.drawText("<", boxCenter_x, boxCenter_y, mpaint);
+                mPredictEnterCenter = false;
 
             } else if (boxCenter_y <= cameraCenter_y - 100) {
                 // move right
                 // canvas.drawText(">", boxCenter_x, boxCenter_y, mpaint);
+                mPredictEnterCenter = false;
+            } else {
+                mPredictEnterCenter = false;
             }
 
             canvas.drawRect(r, mpaint);
@@ -1019,6 +1027,74 @@ public class MainActivity extends AppCompatActivity {
         thread.start();
     }
 
+
+    public class ZoomRun implements Runnable {
+        @Override
+        public void run() {
+            Log.d(TAG, "ZoomRun()");
+            while (true) {
+
+                if (mPredictEnterCenter == false) {
+                    try {
+                        Thread.sleep(500);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                    continue;
+                }
+
+                if (gx1 > 0 && gy1 > 0) {
+                    try {
+                        // Activity activity = getActivity();
+                        // CameraManager manager = (CameraManager) activity.getSystemService(Context.CAMERA_SERVICE);
+                        CameraCharacteristics characteristics = mCameraManager.getCameraCharacteristics(mCameraID);
+                        float maxzoom = (characteristics.get(CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM)) * 10;
+
+                        Rect m = characteristics.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE);
+
+                        int minW = (int) (m.width() / maxzoom);
+                        int minH = (int) (m.height() / maxzoom);
+                        int difW = m.width() - minW;
+                        int difH = m.height() - minH;
+
+                        zoom_level++;
+                        gx1 -= (difW / 100 * (int) zoom_level) & 3;
+                        gy1 -= (difH / 100 * (int) zoom_level) & 3;
+                        gx2 += (difW / 100 * (int) zoom_level) & 3;
+                        gy2 += (difH / 100 * (int) zoom_level) & 3;
+
+                        int cropW = difW / 100 * (int) zoom_level;
+                        int cropH = difH / 100 * (int) zoom_level;
+                        cropW -= cropW & 3;
+                        cropH -= cropH & 3;
+                        Rect zoom = new Rect(cropW, cropH, m.width() - cropW, m.height() - cropH);
+
+
+                        mPreviewBuilder.set(CaptureRequest.SCALER_CROP_REGION, zoom);
+                        try {
+                            mPreviewSession.setRepeatingRequest(mPreviewBuilder.build(), mPreviewSessionCaptureCallback, mBackgroundHandler);
+                        } catch (CameraAccessException e) {
+                            e.printStackTrace();
+                        } catch (NullPointerException ex) {
+                            ex.printStackTrace();
+                        }
+                        Thread.sleep(50);
+
+                    } catch (InterruptedException | CameraAccessException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        }
+    }
+
+    private void autoZoom() {
+        Log.d(TAG, "autoZoom()");
+        ZoomRun pr = new ZoomRun();
+        Thread thread = new Thread(pr);
+        thread.start();
+    }
+
     private void setuptexturetouch() {
 
         mTextureView.setOnTouchListener(new View.OnTouchListener() {
@@ -1039,15 +1115,26 @@ public class MainActivity extends AppCompatActivity {
 
                         current_finger_spacing = getFingerSpacing(event);
                         if (finger_spacing != 0) {
-                            if (current_finger_spacing > finger_spacing && maxzoom > zoom_level) {
-                                zoom_level++;
-                            } else if (current_finger_spacing < finger_spacing && zoom_level > 1) {
-                                zoom_level--;
-                            }
+
                             int minW = (int) (m.width() / maxzoom);
                             int minH = (int) (m.height() / maxzoom);
                             int difW = m.width() - minW;
                             int difH = m.height() - minH;
+
+                            if (current_finger_spacing > finger_spacing && maxzoom > zoom_level) {
+                                zoom_level++;
+                                gx1 -= (difW / 100 * (int) zoom_level) & 3;
+                                gy1 -= (difH / 100 * (int) zoom_level) & 3;
+                                gx2 += (difW / 100 * (int) zoom_level) & 3;
+                                gy2 += (difH / 100 * (int) zoom_level) & 3;
+                            } else if (current_finger_spacing < finger_spacing && zoom_level > 1) {
+                                zoom_level--;
+                                gx1 += (difW / 100 * (int) zoom_level) & 3;
+                                gy1 += (difH / 100 * (int) zoom_level) & 3;
+                                gx2 -= (difW / 100 * (int) zoom_level) & 3;
+                                gy2 -= (difH / 100 * (int) zoom_level) & 3;
+                            }
+
                             int cropW = difW / 100 * (int) zoom_level;
                             int cropH = difH / 100 * (int) zoom_level;
                             cropW -= cropW & 3;
@@ -1070,6 +1157,7 @@ public class MainActivity extends AppCompatActivity {
                     } catch (NullPointerException ex) {
                         ex.printStackTrace();
                     }
+
                 } catch (CameraAccessException e) {
                     throw new RuntimeException("can not access camera.", e);
                 }
