@@ -40,12 +40,15 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.Base64;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.Size;
 import android.util.SparseIntArray;
 import android.view.MotionEvent;
+import android.view.OrientationEventListener;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
@@ -151,6 +154,10 @@ public class MainActivity extends AppCompatActivity {
     private CameraCaptureSession mPreviewSession = null;
     private CaptureRequest.Builder mPreviewBuilder = null;
     private boolean mPredictEnterCenter = false;
+
+    private MyOrientoinListener myOrientoinListener;
+
+    private int mOrientation = 0; // 0: portrait, 1: landscape
 
     // 屏向右x-，屏向左x+，屏向上y-，屏向下y+
     private final SensorEventListener mSensorEventListener = new SensorEventListener() {
@@ -273,6 +280,19 @@ public class MainActivity extends AppCompatActivity {
         mSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
         mSensorManager.registerListener(mSensorEventListener, mSensor, SensorManager.SENSOR_DELAY_GAME);
 
+        myOrientoinListener = new MyOrientoinListener(this);
+        boolean autoRotateOn = (android.provider.Settings.System.getInt(getContentResolver(), Settings.System.ACCELEROMETER_ROTATION, 0) == 1);
+        //检查系统是否开启自动旋转
+        if (autoRotateOn) {
+            myOrientoinListener.enable();
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        //销毁时取消监听
+        myOrientoinListener.disable();
     }
 
     @Override
@@ -345,6 +365,7 @@ public class MainActivity extends AppCompatActivity {
             predictBox();
             paintBox();
             autoZoom();
+            // checkRotation();
 
             AutoTakePhoto(); // FIXME 新增的自动拍设函数
         }
@@ -664,6 +685,7 @@ public class MainActivity extends AppCompatActivity {
 
         Log.d(TAG, "savePicture()");
 
+        // 准备POST发送的临时图片名字，以时间命我
         String timeStamp = new SimpleDateFormat("MM-dd_HH:mm:ss.SSS",
                 Locale.CHINA)
                 .format(Calendar.getInstance().getTime());
@@ -680,12 +702,15 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
+        // 拼接临时图片的绝对路径
         String filename = dirPath + "/" + timeStamp + ".jpg";
 
         final File file = new File(filename);
         Log.i(" filename = ", filename);
 
+        // 写文件图片用的输出流
         OutputStream outputStream = null;
+
 
         Image image = reader.acquireLatestImage();
         mImageWidth = image.getWidth();
@@ -708,13 +733,44 @@ public class MainActivity extends AppCompatActivity {
                     outputStream.close();
 
                     Bitmap newImage = resizeImage(oldBitmap,640, 480);
+
+                    if (mOrientation == 0) { // portrait
+                        // 旋转
+                        Bitmap returnBm = null;
+                        Matrix matrix = new Matrix();
+                        matrix.postRotate(90);
+                        try {
+                            // 拍完的图片全都是横的
+                            // 判断当前手机是横竖，如果是竖的，则把图片转90度，变成竖的，再Post发送
+                            returnBm = Bitmap.createBitmap(newImage, 0, 0, 640, 480, matrix, true);
+                        } catch (Exception e) {
+
+                        }
+                        if (returnBm != null) {
+                            newImage = returnBm;
+                        }
+                    }
+
+                    // 保存
                     String newFilename = saveScaledPicture(newImage);
 
+                    // 编码成base64，准备发送
                     String base64result = imageToBase64(newFilename);
                     // Log.i(TAG2, "newFilename.w = " + Integer.toString(newImage.getWidth()));
                     // Log.i(TAG2, "newFilename.h = " + Integer.toString(newImage.getHeight()));
 
                     sendPost(base64result);
+
+                    // 根据取显框来的长宽来提示用户横竖屏
+                    if (mOrientation == 0) { // 如果当前是横屏
+                        if (my2 -my1 > mx2 - mx1) { // 取景框的 宽 > 高
+                            Toast.makeText(MainActivity.this, "Landscape", Toast.LENGTH_SHORT).show();
+                        }
+                    } else {
+                        if (my2 -my1 < mx2 - mx1) { // 取景框的 高 > 宽
+                            Toast.makeText(MainActivity.this, "Portrait", Toast.LENGTH_SHORT).show();
+                        }
+                    }
 
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -878,7 +934,7 @@ public class MainActivity extends AppCompatActivity {
                 mx2 = bbox.getInt("x2");
                 my2 = bbox.getInt("y2");
 
-                // Log.i(TAG2, mx1 + " " + my1 + " " + mx2 + " " + my2);
+                Log.i("parsePostJson", mx1 + " " + my1 + " " + mx2 + " " + my2);
 
                 // 将横屏逆时针转90度，进行坐标变换，
                 gx1 = my1 * CHEIGHT / 480;
@@ -1095,6 +1151,36 @@ public class MainActivity extends AppCompatActivity {
         thread.start();
     }
 
+    class MyOrientoinListener extends OrientationEventListener {
+        public MyOrientoinListener(Context context) {
+            super(context);
+        }
+
+        public MyOrientoinListener(Context context, int rate) {
+
+            super(context, rate);
+        }
+
+        @Override
+        public void onOrientationChanged(int orientation) {
+            int screenOrientation = getResources().getConfiguration().orientation;
+
+            if (((orientation >= 0) && (orientation < 45)) || (orientation > 315)) {    //设置竖屏
+                Log.d("Rotation", "Portrait " +String.valueOf(orientation));
+                mOrientation = 0;
+            } else if (orientation > 225 && orientation < 315) { //设置横屏
+                Log.d("Rotation", "Landscape " + String.valueOf(orientation));
+                mOrientation = 1;
+            } else if (orientation > 45 && orientation < 135) {// 设置反向横屏
+                Log.d("Rotation", "Landscape " + String.valueOf(orientation));
+                mOrientation = 1;
+            } else if (orientation > 135 && orientation < 225) { //反向竖屏
+                Log.d("Rotation", "Portrait " +String.valueOf(orientation));
+                mOrientation = 0;
+            }
+        }
+    }
+
     private void setuptexturetouch() {
 
         mTextureView.setOnTouchListener(new View.OnTouchListener() {
@@ -1172,6 +1258,7 @@ public class MainActivity extends AppCompatActivity {
         float y = event.getY(0) - event.getY(1);
         return (float) Math.sqrt(x * x + y * y);
     }
+
 
 
 }
