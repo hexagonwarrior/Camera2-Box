@@ -1,4 +1,5 @@
 <resources>
     <string name="app_name">云拍构图大师</string>
     <string name="take_picture">TAKE</string>
+    <string name="description_info">INFO</string>
 </resources>

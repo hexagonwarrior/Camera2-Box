@@ -6,6 +6,7 @@ import androidx.core.app.ActivityCompat;
 
 import android.Manifest;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
@@ -269,6 +270,17 @@ public class MainActivity extends AppCompatActivity {
                 Log.d(TAG, "Taking picture button clicked.");
                 createSessionForTakingPicture();
                 Toast.makeText(MainActivity.this, "Picture saved.", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        findViewById(R.id.info).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent intent = new Intent();
+                intent.setClass(MainActivity.this, PKActivity.class);
+                Log.i("", "PKActivity start");
+                startActivity(intent);
+                Log.i("", "PKActivity end");
             }
         });
 
