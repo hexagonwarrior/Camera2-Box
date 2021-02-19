@@ -284,10 +284,16 @@ public class MainActivity extends AppCompatActivity {
                 Intent intent = new Intent();
                 intent.setClass(MainActivity.this, PKActivity.class);
                 Bundle bundle = new Bundle();
+                // bundle.putString("OriginalImagePath", mOriginalImagePath); // 原始取景
+                // bundle.putString("TakenImagePath", mTakenImagePath); // 实际取景
+                // bundle.putString("PhotoMasterImagePath", mPhotoMasterImagePath); // PhotoMaster取景
+                // bundle.putString("VPNImagePath", mVPNImagePath); // VPN取景
+
                 bundle.putString("OriginalImagePath", mOriginalImagePath); // 原始取景
-                bundle.putString("TakenImagePath", mTakenImagePath); // 实际取景
-                bundle.putString("PhotoMasterImagePath", mPhotoMasterImagePath); // PhotoMaster取景
-                bundle.putString("VPNImagePath", mVPNImagePath); // VPN取景
+                bundle.putString("TakenImagePath", mOriginalImagePath); // 实际取景
+                bundle.putString("PhotoMasterImagePath", mOriginalImagePath); // PhotoMaster取景
+                bundle.putString("VPNImagePath", mOriginalImagePath); // VPN取景
+
                 intent.putExtras(bundle);
                 startActivity(intent);
             }
@@ -613,7 +619,9 @@ public class MainActivity extends AppCompatActivity {
 
             //noinspection ConstantConditions
             // 不断的重复请求捕捉画面，常用于预览或者连拍场景。
-            session.setRepeatingRequest(builder.build(), mPreviewSessionCaptureCallback, mBackgroundHandler);
+            if (session != null) {
+                session.setRepeatingRequest(builder.build(), mPreviewSessionCaptureCallback, mBackgroundHandler);
+            }
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
@@ -640,8 +648,10 @@ public class MainActivity extends AppCompatActivity {
             outputSurfaces.add(mImageReader.getSurface());
             outputSurfaces.add(mPreviewSurface);
 
-            mCameraDevice.createCaptureSession(outputSurfaces, mPictureSessionStateCallback,
-                    mBackgroundHandler);
+            if (mCameraDevice != null) {
+                mCameraDevice.createCaptureSession(outputSurfaces, mPictureSessionStateCallback,
+                        mBackgroundHandler);
+            }
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
@@ -650,6 +660,9 @@ public class MainActivity extends AppCompatActivity {
     // 这个是触发相机进行抓取的回调函数
     private void requestDataForTakingPicture(@NonNull CameraCaptureSession session) {
         Log.d(TAG, "requestDataForTakingPicture()");
+        if (session == null) {
+            return;
+        }
         try {
             final CaptureRequest.Builder builder =
                     mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
@@ -659,7 +672,9 @@ public class MainActivity extends AppCompatActivity {
                     ORIENTATIONS.get(getWindowManager().getDefaultDisplay().getRotation()));
             // 确定方向? FXIME
 
-            session.capture(builder.build(), mPictureSessionCaptureCallback, mBackgroundHandler);
+            if (session != null) {
+                session.capture(builder.build(), mPictureSessionCaptureCallback, mBackgroundHandler);
+            }
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
@@ -1126,16 +1141,13 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void run() {
             Log.d(TAG, "ZoomRun()");
-            while (true) {
 
-                if (mPredictEnterCenter == false) {
-                    try {
-                        Thread.sleep(500);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                    continue;
-                }
+            try {
+                Thread.sleep(5000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            while (true) {
 
                 if (gx1 > 0 && gy1 > 0) {
                     try {

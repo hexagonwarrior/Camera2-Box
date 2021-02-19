@@ -98,21 +98,28 @@ public class PKActivity extends AppCompatActivity {
         String TakenImagePath = bundle.getString("TakenImagePath");
         String PhotoMasterImagePath = bundle.getString("PhotoMasterImagePath");
         String VPNImagePath = bundle.getString("VPNImagePath");
-        Log.i("SECONDACTIVITY", "LastOriginalImagePath = " + LastOriginalImagePath);
-        Log.i("SECONDACTIVITY", "TakenImagePath = " + TakenImagePath);
-        Log.i("SECONDACTIVITY", "PhotoMasterImagePath = " + PhotoMasterImagePath);
-        Log.i("SECONDACTIVITY", "VPNImagePath = " + VPNImagePath);
+        //Log.i("SECONDACTIVITY", "LastOriginalImagePath = " + LastOriginalImagePath);
+        //Log.i("SECONDACTIVITY", "TakenImagePath = " + TakenImagePath);
+        //Log.i("SECONDACTIVITY", "PhotoMasterImagePath = " + PhotoMasterImagePath);
+        //Log.i("SECONDACTIVITY", "VPNImagePath = " + VPNImagePath);
 
-        showPicture(TakenImagePath);
+        showPicture(R.id.img1, LastOriginalImagePath);
+        showPicture(R.id.img2, TakenImagePath);
+        showPicture(R.id.img3, PhotoMasterImagePath);
+        showPicture(R.id.img4, VPNImagePath);
 
     }
 
-    public void showPicture(String path) {
+    public void showPicture(int id, String path) {
+
+        Log.i("SECONDACTIVITY", "id = " + id + ", path = " + path);
         if (path == null) {
             return;
         }
         File file = new File(path);
-        ImageView img = (ImageView) findViewById(R.id.img);
+        ImageView img = (ImageView) findViewById(id);
+
+
 
         if(file.exists()){
             Bitmap bm = BitmapFactory.decodeFile(path);
