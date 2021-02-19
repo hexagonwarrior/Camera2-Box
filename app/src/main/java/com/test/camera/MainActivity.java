@@ -160,6 +160,11 @@ public class MainActivity extends AppCompatActivity {
 
     private int mOrientation = 0; // 0: portrait, 1: landscape
 
+    private String mOriginalImagePath;
+    private String mTakenImagePath;
+    private String mPhotoMasterImagePath;
+    private String mVPNImagePath;
+
     // 屏向右x-，屏向左x+，屏向上y-，屏向下y+
     private final SensorEventListener mSensorEventListener = new SensorEventListener() {
         @Override
@@ -278,9 +283,13 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View v) {
                 Intent intent = new Intent();
                 intent.setClass(MainActivity.this, PKActivity.class);
-                Log.i("", "PKActivity start");
+                Bundle bundle = new Bundle();
+                bundle.putString("OriginalImagePath", mOriginalImagePath); // 原始取景
+                bundle.putString("TakenImagePath", mTakenImagePath); // 实际取景
+                bundle.putString("PhotoMasterImagePath", mPhotoMasterImagePath); // PhotoMaster取景
+                bundle.putString("VPNImagePath", mVPNImagePath); // VPN取景
+                intent.putExtras(bundle);
                 startActivity(intent);
-                Log.i("", "PKActivity end");
             }
         });
 
@@ -734,6 +743,7 @@ public class MainActivity extends AppCompatActivity {
         Bitmap oldBitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
 
         try {
+            // 保存图片
             outputStream = new BufferedOutputStream(new FileOutputStream(file));
             outputStream.write(bytes);
             outputStream.flush();
@@ -766,12 +776,28 @@ public class MainActivity extends AppCompatActivity {
                     // 保存
                     String newFilename = saveScaledPicture(newImage);
 
+                    if (mTakenImagePath == null) {
+                        mOriginalImagePath = newFilename;
+                    } else {
+                        // 保留上一次的原始预测图
+                        mOriginalImagePath = mTakenImagePath;
+                    }
+                    mTakenImagePath = newFilename;
+
                     // 编码成base64，准备发送
                     String base64result = imageToBase64(newFilename);
                     // Log.i(TAG2, "newFilename.w = " + Integer.toString(newImage.getWidth()));
                     // Log.i(TAG2, "newFilename.h = " + Integer.toString(newImage.getHeight()));
 
                     sendPost(base64result);
+
+                    // FIXME:
+                    // 发送PM和VPN的请求POST，
+                    // 获取结果后，解析Json，
+                    // 然后进行图像裁减，
+                    // 保存图片路径
+                    mPhotoMasterImagePath = newFilename;
+                    mVPNImagePath = newFilename;
 
                     // 根据取显框来的长宽来提示用户横竖屏
                     if (mOrientation == 0) { // 如果当前是横屏

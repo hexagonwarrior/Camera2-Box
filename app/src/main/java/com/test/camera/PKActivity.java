@@ -54,6 +54,7 @@ import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.TextureView;
 import android.view.View;
+import android.widget.ImageView;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -90,5 +91,32 @@ public class PKActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_pk);
         Log.i("SECONDACTIVITY", "xxx");
+
+
+        Bundle bundle = this.getIntent().getExtras();
+        String LastOriginalImagePath = bundle.getString("LastOriginalImagePath");
+        String TakenImagePath = bundle.getString("TakenImagePath");
+        String PhotoMasterImagePath = bundle.getString("PhotoMasterImagePath");
+        String VPNImagePath = bundle.getString("VPNImagePath");
+        Log.i("SECONDACTIVITY", "LastOriginalImagePath = " + LastOriginalImagePath);
+        Log.i("SECONDACTIVITY", "TakenImagePath = " + TakenImagePath);
+        Log.i("SECONDACTIVITY", "PhotoMasterImagePath = " + PhotoMasterImagePath);
+        Log.i("SECONDACTIVITY", "VPNImagePath = " + VPNImagePath);
+
+        showPicture(TakenImagePath);
+
+    }
+
+    public void showPicture(String path) {
+        if (path == null) {
+            return;
+        }
+        File file = new File(path);
+        ImageView img = (ImageView) findViewById(R.id.img);
+
+        if(file.exists()){
+            Bitmap bm = BitmapFactory.decodeFile(path);
+            img.setImageBitmap(bm);
+        }
     }
 }
