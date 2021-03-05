@@ -55,6 +55,7 @@ import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.TextureView;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -253,13 +254,13 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
 
-        Log.d(TAG, "onCreate()");
+        // 去掉Activity上面的状态栏
+        getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        setContentView(R.layout.activity_main);
 
         mTextureView = findViewById(R.id.texture);
         mSurfaceView = findViewById(R.id.surface);
@@ -272,12 +273,12 @@ public class MainActivity extends AppCompatActivity {
         mButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Log.d(TAG, "Taking picture button clicked.");
                 createSessionForTakingPicture();
-                Toast.makeText(MainActivity.this, "Picture saved.", Toast.LENGTH_SHORT).show();
+                Toast.makeText(MainActivity.this, "图片己保存", Toast.LENGTH_SHORT).show();
             }
         });
 
+        // FIXME: R.id.info是一个隐藏按钮，用于调试
         findViewById(R.id.info).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -289,6 +290,7 @@ public class MainActivity extends AppCompatActivity {
                 // bundle.putString("PhotoMasterImagePath", mPhotoMasterImagePath); // PhotoMaster取景
                 // bundle.putString("VPNImagePath", mVPNImagePath); // VPN取景
 
+                // FIXME: mOriginalImagePath 为空，需要debug
                 bundle.putString("OriginalImagePath", mOriginalImagePath); // 原始取景
                 bundle.putString("TakenImagePath", mOriginalImagePath); // 实际取景
                 bundle.putString("PhotoMasterImagePath", mOriginalImagePath); // PhotoMaster取景
@@ -299,14 +301,17 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        mSurfaceView.setZOrderOnTop(true);//处于顶层
+        // 画框
+        mSurfaceView.setZOrderOnTop(true);//画框需要把SurfaceView处于顶层
         mSurfaceView.getHolder().setFormat(PixelFormat.TRANSPARENT);//设置surface为透明
         mSurfaceHolder = mSurfaceView.getHolder();
 
+        // 初始化陀螺仪
         mSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
         mSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
         mSensorManager.registerListener(mSensorEventListener, mSensor, SensorManager.SENSOR_DELAY_GAME);
 
+        // 初始化方向传感器
         myOrientoinListener = new MyOrientoinListener(this);
         boolean autoRotateOn = (android.provider.Settings.System.getInt(getContentResolver(), Settings.System.ACCELEROMETER_ROTATION, 0) == 1);
         //检查系统是否开启自动旋转
@@ -325,14 +330,11 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        Log.d(TAG, "onResume()");
         startBackgroundThread();
         if (mTextureView.isAvailable()) {
-            Log.d(TAG, "onResume() texture has been available");
             setupPreviewAndImageReader();
             openCamera();
         } else {
-            Log.d(TAG, "onResume() texture NOT available");
             mTextureView.setSurfaceTextureListener(mTextureListener);
         }
         mSensorManager.registerListener(mSensorEventListener, mSensor, SensorManager.SENSOR_DELAY_GAME);
@@ -391,7 +393,7 @@ public class MainActivity extends AppCompatActivity {
             openCamera();
             predictBox();
             paintBox();
-            autoZoom();
+            // autoZoom();
             // checkRotation();
 
             AutoTakePhoto(); // FIXME 新增的自动拍设函数
@@ -629,10 +631,6 @@ public class MainActivity extends AppCompatActivity {
 
     // 发送请求给相机设备进行拍照
     protected void createSessionForTakingPicture() {
-        Log.d(TAG, "createSessionForTakingPicture()");
-        if (mCameraManager == null || mCameraDevice == null) {
-            return;
-        }
         try {
             // imageReader.acquireLatestImage调用完成后需要close imageReader. 下次拍照需要重新实例化一个
             // imageReader
