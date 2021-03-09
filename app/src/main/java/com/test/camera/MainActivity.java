@@ -95,7 +95,7 @@ public class MainActivity extends AppCompatActivity {
     private static final int CHEIGHT = 1080; // 这两个值是根据实测获得，FIXME
     private static final int CWIDTH = 1536; // 这两个值是根据实测获得，FIXME
 
-    private static final int AUTO_TAKE_TIMER = 3000000;
+    private static final int AUTO_TAKE_TIMER = 3000000; // 单位毫秒，将这个数改为3000,则每3秒自动拍照预测一次
 
     private static final int REQUEST_CAMERA_PERMISSION = 200;
     private static final SparseIntArray ORIENTATIONS = new SparseIntArray();
@@ -165,6 +165,9 @@ public class MainActivity extends AppCompatActivity {
     private String mTakenImagePath;
     private String mPhotoMasterImagePath;
     private String mVPNImagePath;
+
+    private String mText = "";
+    private Rect mZoom = null;
 
     // 屏向右x-，屏向左x+，屏向上y-，屏向下y+
     private final SensorEventListener mSensorEventListener = new SensorEventListener() {
@@ -313,11 +316,11 @@ public class MainActivity extends AppCompatActivity {
 
         // 初始化方向传感器
         myOrientoinListener = new MyOrientoinListener(this);
-        boolean autoRotateOn = (android.provider.Settings.System.getInt(getContentResolver(), Settings.System.ACCELEROMETER_ROTATION, 0) == 1);
+        // boolean autoRotateOn = (android.provider.Settings.System.getInt(getContentResolver(), Settings.System.ACCELEROMETER_ROTATION, 0) == 1);
         //检查系统是否开启自动旋转
-        if (autoRotateOn) {
+        // if (autoRotateOn) {
             myOrientoinListener.enable();
-        }
+        // }
     }
 
     @Override
@@ -346,10 +349,9 @@ public class MainActivity extends AppCompatActivity {
                                            @NonNull int[] grantResults) {
         if (requestCode == REQUEST_CAMERA_PERMISSION) {
             if (grantResults[0] == PackageManager.PERMISSION_DENIED) {
-                Log.d(TAG, "onRequestPermissionsResult() denied.");
                 // close the app
                 Toast.makeText(MainActivity.this,
-                        "Sorry!!!, you can't use this app without granting permission",
+                        "此应用没有权限",
                         Toast.LENGTH_LONG)
                         .show();
                 finish();
@@ -359,7 +361,6 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onPause() {
-        Log.d(TAG, "onPause()");
         closeCamera();
         stopBackgroundThread();
         super.onPause();
@@ -367,14 +368,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void startBackgroundThread() {
-        Log.d(TAG, "startBackgroundThread()");
         mBackgroundThread = new HandlerThread("Camera Background");
         mBackgroundThread.start();
         mBackgroundHandler = new Handler(mBackgroundThread.getLooper());
     }
 
     private void stopBackgroundThread() {
-        Log.d(TAG, "stopBackgroundThread()");
         mBackgroundThread.quitSafely();
         try {
             mBackgroundThread.join();
@@ -388,13 +387,11 @@ public class MainActivity extends AppCompatActivity {
     TextureView.SurfaceTextureListener mTextureListener = new TextureView.SurfaceTextureListener() {
         @Override
         public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
-            Log.d(TAG, "SurfaceTextureListener: texture available");
             setupPreviewAndImageReader();
             openCamera();
             predictBox();
             paintBox();
             // autoZoom();
-            // checkRotation();
 
             AutoTakePhoto(); // FIXME 新增的自动拍设函数
         }
@@ -528,7 +525,6 @@ public class MainActivity extends AppCompatActivity {
 
 
     private void setupPreviewAndImageReader() {
-        Log.d(TAG, "setupPreviewAndImageReader()");
         try {
             mCameraManager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
             mCameraID = mCameraManager.getCameraIdList()[0];
@@ -544,8 +540,8 @@ public class MainActivity extends AppCompatActivity {
                 surfaceTexture.setDefaultBufferSize(mPreviewSize.getWidth(),
                         mPreviewSize.getHeight());
 
-                Log.i(TAG, "mPreviewSize.getWidth = " + Integer.toString(mPreviewSize.getWidth()));
-                Log.i(TAG, "mPreviewSize.getHeight = " + Integer.toString(mPreviewSize.getHeight()));
+                // Log.i(TAG, "mPreviewSize.getWidth = " + Integer.toString(mPreviewSize.getWidth()));
+                // Log.i(TAG, "mPreviewSize.getHeight = " + Integer.toString(mPreviewSize.getHeight()));
 
                 mPreviewSurface = new Surface(surfaceTexture);
 
@@ -561,13 +557,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void openCamera() {
-
-        Log.d(TAG, "openCamera() begin");
-
-        if (mCameraManager == null) {
-            return;
-        }
-
         try {
             // Add permission for com.test.camera and let user grant the permission
             if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
@@ -605,7 +594,6 @@ public class MainActivity extends AppCompatActivity {
 
     // 从Camera请求数据用来预览
     protected void requestDataForPreviewFlow(@NonNull CameraCaptureSession session) {
-        Log.d(TAG, "requestDataForPreviewFlow()");
         if (mCameraDevice == null) {
             Log.e(TAG, "requestDataForPreviewFlow() mCameraDevice == null");
             return;
@@ -657,7 +645,6 @@ public class MainActivity extends AppCompatActivity {
 
     // 这个是触发相机进行抓取的回调函数
     private void requestDataForTakingPicture(@NonNull CameraCaptureSession session) {
-        Log.d(TAG, "requestDataForTakingPicture()");
         if (session == null) {
             return;
         }
@@ -668,6 +655,9 @@ public class MainActivity extends AppCompatActivity {
             builder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
             builder.set(CaptureRequest.JPEG_ORIENTATION,
                     ORIENTATIONS.get(getWindowManager().getDefaultDisplay().getRotation()));
+            if (mZoom != null) { // 拍照时裁减
+                builder.set(CaptureRequest.SCALER_CROP_REGION, mZoom);
+            }
             // 确定方向? FXIME
 
             if (session != null) {
@@ -717,9 +707,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void savePicture(ImageReader reader) {
 
-        Log.d(TAG, "savePicture()");
-
-        // 准备POST发送的临时图片名字，以时间命我
+        // 准备POST发送的临时图片名字，以时间命名
         String timeStamp = new SimpleDateFormat("MM-dd_HH:mm:ss.SSS",
                 Locale.CHINA)
                 .format(Calendar.getInstance().getTime());
@@ -812,16 +800,7 @@ public class MainActivity extends AppCompatActivity {
                     mPhotoMasterImagePath = newFilename;
                     mVPNImagePath = newFilename;
 
-                    // 根据取显框来的长宽来提示用户横竖屏
-                    if (mOrientation == 0) { // 如果当前是横屏
-                        if (my2 -my1 > mx2 - mx1) { // 取景框的 宽 > 高
-                            Toast.makeText(MainActivity.this, "Landscape", Toast.LENGTH_SHORT).show();
-                        }
-                    } else {
-                        if (my2 -my1 < mx2 - mx1) { // 取景框的 高 > 宽
-                            Toast.makeText(MainActivity.this, "Portrait", Toast.LENGTH_SHORT).show();
-                        }
-                    }
+                    
 
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -844,8 +823,8 @@ public class MainActivity extends AppCompatActivity {
 
     public void paintRect(int x1, int y1, int x2, int y2)
     {
-        Log.i(TAG2, "predict original : " + mx1 + " " + my1 + " " + mx2 + " " + my2);
-        Log.i(TAG2, "predict rotate : " + x1 + " " + y1 + " " + x2 + " " + y2);
+        // Log.i(TAG2, "predict original : " + mx1 + " " + my1 + " " + mx2 + " " + my2);
+        // Log.i(TAG2, "predict transfer : " + x1 + " " + y1 + " " + x2 + " " + y2);
 
         Paint mpaint = new Paint();
         mpaint.setColor(Color.RED);
@@ -867,37 +846,52 @@ public class MainActivity extends AppCompatActivity {
             int boxCenter_x = (x2 + x1) / 2; // landscope height
             int boxCenter_y = (y2 + y1) / 2; // landscope width
 
-            // mpaint.setTextSize(40); // 还未确定效果 FIXME
 
             if ((boxCenter_x < cameraCenter_x + 100 && boxCenter_x > cameraCenter_x - 100)
                     && (boxCenter_y < cameraCenter_y + 100 && boxCenter_y > cameraCenter_y - 100)) {
                 mpaint.setColor(Color.GREEN);
                 mPredictEnterCenter = true;
-                // canvas.drawText("X", boxCenter_x, boxCenter_y, mpaint);
+
             } else if (boxCenter_x >= cameraCenter_x + 100) {
-                // move down
-                // canvas.drawText("v", boxCenter_x, boxCenter_y, mpaint);
                 mPredictEnterCenter = false;
 
             } else if (boxCenter_x <= cameraCenter_x - 100) {
-                // move up
-                // canvas.drawText("^", boxCenter_x, boxCenter_y, mpaint);
                 mPredictEnterCenter = false;
 
             } else if (boxCenter_y >= cameraCenter_y + 100) {
-                // move left
-                // canvas.drawText("<", boxCenter_x, boxCenter_y, mpaint);
                 mPredictEnterCenter = false;
 
             } else if (boxCenter_y <= cameraCenter_y - 100) {
-                // move right
-                // canvas.drawText(">", boxCenter_x, boxCenter_y, mpaint);
                 mPredictEnterCenter = false;
+
             } else {
                 mPredictEnterCenter = false;
             }
 
             canvas.drawRect(r, mpaint);
+
+            // 屏幕上写字
+            mpaint.setTextSize(80);
+            mpaint.setStrokeWidth(1f);
+            mpaint.setStyle(Paint.Style.FILL);// 画笔实心
+            mpaint.setColor(Color.BLUE);
+            canvas.drawText(mText, 100, 100, mpaint);
+
+            // 根据取景框来的长宽来提示用户横竖屏
+            // 画图坐标是以左上为原点，x为水平方向，y为垂直方向
+            if (mOrientation == 0) { // 如果当前是横屏
+                if (my2 -my1 > mx2 - mx1) { // 取景框的 宽 > 高
+                    mpaint.setColor(Color.RED);
+                    canvas.drawText("请使用横屏拍摄", 100, 200, mpaint);
+                    // Toast.makeText(MainActivity.this, "请横屏拍摄", Toast.LENGTH_SHORT).show();
+                }
+            } else {
+                if (my2 -my1 < mx2 - mx1) { // 取景框的 高 > 宽
+                    mpaint.setColor(Color.RED);
+                    canvas.drawText("请使用竖屏拍摄", 100, 200, mpaint); 
+                    // Toast.makeText(MainActivity.this, "请竖屏拍摄", Toast.LENGTH_SHORT).show();
+                }
+            }
 
             mSurfaceHolder.unlockCanvasAndPost(canvas);
         } catch (Exception e) { // java.lang.NullPointerException: Attempt to invoke virtual method 'void android.graphics.Canvas.drawColor(int, android.graphics.PorterDuff$Mode)' on a null object reference
@@ -1105,7 +1099,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
     private void predictBox() {
-        Log.d(TAG, "predictBox()");
         PredictRun pr = new PredictRun();
         Thread thread = new Thread(pr);
         thread.start();
@@ -1171,10 +1164,10 @@ public class MainActivity extends AppCompatActivity {
                         int cropH = difH / 100 * (int) zoom_level;
                         cropW -= cropW & 3;
                         cropH -= cropH & 3;
-                        Rect zoom = new Rect(cropW, cropH, m.width() - cropW, m.height() - cropH);
 
+                        mZoom = new Rect(cropW, cropH, m.width() - cropW, m.height() - cropH);
+                        mPreviewBuilder.set(CaptureRequest.SCALER_CROP_REGION, mZoom);
 
-                        mPreviewBuilder.set(CaptureRequest.SCALER_CROP_REGION, zoom);
                         try {
                             mPreviewSession.setRepeatingRequest(mPreviewBuilder.build(), mPreviewSessionCaptureCallback, mBackgroundHandler);
                         } catch (CameraAccessException e) {
@@ -1216,14 +1209,18 @@ public class MainActivity extends AppCompatActivity {
             if (((orientation >= 0) && (orientation < 45)) || (orientation > 315)) {    //设置竖屏
                 Log.d("Rotation", "Portrait " +String.valueOf(orientation));
                 mOrientation = 0;
+                mText = "当前是竖屏拍摄";
             } else if (orientation > 225 && orientation < 315) { //设置横屏
                 Log.d("Rotation", "Landscape " + String.valueOf(orientation));
+                mText = "当前是横屏拍摄";
                 mOrientation = 1;
             } else if (orientation > 45 && orientation < 135) {// 设置反向横屏
                 Log.d("Rotation", "Landscape " + String.valueOf(orientation));
+                mText = "当前是横屏拍摄";
                 mOrientation = 1;
             } else if (orientation > 135 && orientation < 225) { //反向竖屏
                 Log.d("Rotation", "Portrait " +String.valueOf(orientation));
+                mText = "当前是竖屏拍摄";
                 mOrientation = 0;
             }
         }
@@ -1273,14 +1270,14 @@ public class MainActivity extends AppCompatActivity {
                             int cropH = difH / 100 * (int) zoom_level;
                             cropW -= cropW & 3;
                             cropH -= cropH & 3;
-                            Rect zoom = new Rect(cropW, cropH, m.width() - cropW, m.height() - cropH);
-                            mPreviewBuilder.set(CaptureRequest.SCALER_CROP_REGION, zoom);
+                            mZoom = new Rect(cropW, cropH, m.width() - cropW, m.height() - cropH);
+                            mPreviewBuilder.set(CaptureRequest.SCALER_CROP_REGION, mZoom);
                         }
                         finger_spacing = current_finger_spacing;
                         Log.d("TOUCH", "finger_spacing: " + finger_spacing);
                     } else {
                         if (action == MotionEvent.ACTION_UP) {
-                            //single touch logic
+                            //single touch logicRF
                         }
                     }
 
