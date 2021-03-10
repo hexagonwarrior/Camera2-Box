@@ -54,6 +54,7 @@ import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.TextureView;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.ImageView;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
@@ -89,12 +90,12 @@ public class PKActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_pk);
-        Log.i("SECONDACTIVITY", "xxx");
+        getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
 
+        setContentView(R.layout.activity_pk);
 
         Bundle bundle = this.getIntent().getExtras();
-        String LastOriginalImagePath = bundle.getString("LastOriginalImagePath");
+        String LastOriginalImagePath = bundle.getString("OriginalImagePath");
         String TakenImagePath = bundle.getString("TakenImagePath");
         String PhotoMasterImagePath = bundle.getString("PhotoMasterImagePath");
         String VPNImagePath = bundle.getString("VPNImagePath");

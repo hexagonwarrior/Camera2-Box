@@ -161,10 +161,10 @@ public class MainActivity extends AppCompatActivity {
 
     private int mOrientation = 0; // 0: portrait, 1: landscape
 
-    private String mOriginalImagePath;
-    private String mTakenImagePath;
-    private String mPhotoMasterImagePath;
-    private String mVPNImagePath;
+    private String mOriginalImagePath; // 原始取景图
+    private String mTakenImagePath; // 取景框1
+    private String mPhotoMasterImagePath; // 取影框2
+    private String mVPNImagePath; // 取景框3
 
     private String mText = "";
     private Rect mZoom = null;
@@ -257,6 +257,19 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
+    public void gotoPKActivity() {
+        Intent intent = new Intent();
+        intent.setClass(MainActivity.this, PKActivity.class);
+        Bundle bundle = new Bundle();
+        bundle.putString("OriginalImagePath", mOriginalImagePath); // 原始取景
+        bundle.putString("TakenImagePath", mTakenImagePath); // 实际取景
+        bundle.putString("PhotoMasterImagePath", mPhotoMasterImagePath); // PhotoMaster取景
+        bundle.putString("VPNImagePath", mVPNImagePath); // VPN取景
+
+        intent.putExtras(bundle);
+        startActivity(intent);
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -277,6 +290,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 createSessionForTakingPicture();
+                gotoPKActivity();
                 Toast.makeText(MainActivity.this, "图片己保存", Toast.LENGTH_SHORT).show();
             }
         });
@@ -285,22 +299,7 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.info).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Intent intent = new Intent();
-                intent.setClass(MainActivity.this, PKActivity.class);
-                Bundle bundle = new Bundle();
-                // bundle.putString("OriginalImagePath", mOriginalImagePath); // 原始取景
-                // bundle.putString("TakenImagePath", mTakenImagePath); // 实际取景
-                // bundle.putString("PhotoMasterImagePath", mPhotoMasterImagePath); // PhotoMaster取景
-                // bundle.putString("VPNImagePath", mVPNImagePath); // VPN取景
-
-                // FIXME: mOriginalImagePath 为空，需要debug
-                bundle.putString("OriginalImagePath", mOriginalImagePath); // 原始取景
-                bundle.putString("TakenImagePath", mOriginalImagePath); // 实际取景
-                bundle.putString("PhotoMasterImagePath", mOriginalImagePath); // PhotoMaster取景
-                bundle.putString("VPNImagePath", mOriginalImagePath); // VPN取景
-
-                intent.putExtras(bundle);
-                startActivity(intent);
+                gotoPKActivity();
             }
         });
 
@@ -415,7 +414,6 @@ public class MainActivity extends AppCompatActivity {
             new ImageReader.OnImageAvailableListener() {
                 @Override
                 public void onImageAvailable(ImageReader reader) {
-                    Log.d(TAG, "ImageListener: image available");
                     savePicture(reader);
                 }
             };
@@ -799,8 +797,6 @@ public class MainActivity extends AppCompatActivity {
                     // 保存图片路径
                     mPhotoMasterImagePath = newFilename;
                     mVPNImagePath = newFilename;
-
-                    
 
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -1209,18 +1205,18 @@ public class MainActivity extends AppCompatActivity {
             if (((orientation >= 0) && (orientation < 45)) || (orientation > 315)) {    //设置竖屏
                 Log.d("Rotation", "Portrait " +String.valueOf(orientation));
                 mOrientation = 0;
-                mText = "当前是竖屏拍摄";
+                mText = "当前是竖屏预览";
             } else if (orientation > 225 && orientation < 315) { //设置横屏
                 Log.d("Rotation", "Landscape " + String.valueOf(orientation));
-                mText = "当前是横屏拍摄";
+                mText = "当前是横屏预览";
                 mOrientation = 1;
             } else if (orientation > 45 && orientation < 135) {// 设置反向横屏
                 Log.d("Rotation", "Landscape " + String.valueOf(orientation));
-                mText = "当前是横屏拍摄";
+                mText = "当前是横屏预览";
                 mOrientation = 1;
             } else if (orientation > 135 && orientation < 225) { //反向竖屏
                 Log.d("Rotation", "Portrait " +String.valueOf(orientation));
-                mText = "当前是竖屏拍摄";
+                mText = "当前是竖屏预览";
                 mOrientation = 0;
             }
         }
