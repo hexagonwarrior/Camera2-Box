@@ -95,16 +95,12 @@ public class PKActivity extends AppCompatActivity {
         setContentView(R.layout.activity_pk);
 
         Bundle bundle = this.getIntent().getExtras();
-        String LastOriginalImagePath = bundle.getString("OriginalImagePath");
+        String OriginalImagePath = bundle.getString("OriginalImagePath");
         String TakenImagePath = bundle.getString("TakenImagePath");
         String PhotoMasterImagePath = bundle.getString("PhotoMasterImagePath");
         String VPNImagePath = bundle.getString("VPNImagePath");
-        //Log.i("SECONDACTIVITY", "LastOriginalImagePath = " + LastOriginalImagePath);
-        //Log.i("SECONDACTIVITY", "TakenImagePath = " + TakenImagePath);
-        //Log.i("SECONDACTIVITY", "PhotoMasterImagePath = " + PhotoMasterImagePath);
-        //Log.i("SECONDACTIVITY", "VPNImagePath = " + VPNImagePath);
 
-        showPicture(R.id.img1, LastOriginalImagePath);
+        showPicture(R.id.img1, OriginalImagePath);
         showPicture(R.id.img2, TakenImagePath);
         showPicture(R.id.img3, PhotoMasterImagePath);
         showPicture(R.id.img4, VPNImagePath);

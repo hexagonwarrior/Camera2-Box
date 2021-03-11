@@ -161,10 +161,11 @@ public class MainActivity extends AppCompatActivity {
 
     private int mOrientation = 0; // 0: portrait, 1: landscape
 
-    private String mOriginalImagePath; // 原始取景图
-    private String mTakenImagePath; // 取景框1
-    private String mPhotoMasterImagePath; // 取影框2
-    private String mVPNImagePath; // 取景框3
+    private String mLastPredictImagePath = null; // 上一次的预测图
+    private String mOriginalImagePath = null; // 预测图
+    private String mTakenImagePath = null; // 取景框1
+    private String mPhotoMasterImagePath = null; // 取影框2
+    private String mVPNImagePath = null; // 取景框3
 
     private String mText = "";
     private Rect mZoom = null;
@@ -290,16 +291,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 createSessionForTakingPicture();
-                gotoPKActivity();
                 Toast.makeText(MainActivity.this, "图片己保存", Toast.LENGTH_SHORT).show();
-            }
-        });
-
-        // FIXME: R.id.info是一个隐藏按钮，用于调试
-        findViewById(R.id.info).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                gotoPKActivity();
             }
         });
 
@@ -724,9 +716,7 @@ public class MainActivity extends AppCompatActivity {
 
         // 拼接临时图片的绝对路径
         String filename = dirPath + "/" + timeStamp + ".jpg";
-
         final File file = new File(filename);
-        Log.i(" filename = ", filename);
 
         // 写文件图片用的输出流
         OutputStream outputStream = null;
@@ -740,6 +730,7 @@ public class MainActivity extends AppCompatActivity {
         byte[] bytes = new byte[buffer.capacity()];
         buffer.get(bytes);
         Bitmap oldBitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+
 
         try {
             // 保存图片
@@ -775,29 +766,26 @@ public class MainActivity extends AppCompatActivity {
                     // 保存
                     String newFilename = saveScaledPicture(newImage);
 
-                    if (mTakenImagePath == null) {
-                        mOriginalImagePath = newFilename;
+                    if (mLastPredictImagePath == null) { // 初始时只有预测图
+                        mLastPredictImagePath = newFilename;
                     } else {
-                        // 保留上一次的原始预测图
-                        mOriginalImagePath = mTakenImagePath;
+                        // 点击拍照时产生了拍照图,拍照图同时也是下一次的预测图
+                        // 发送PM和VPN的请求POST，
+                        // 获取结果后，解析Json，
+                        // 然后进行图像裁减，
+                        // 保存图片路径
+                        mTakenImagePath = newFilename;
+                        mPhotoMasterImagePath = newFilename;
+                        mVPNImagePath = newFilename;
+                        mOriginalImagePath = mLastPredictImagePath;
+                        mLastPredictImagePath = newFilename;
+                        gotoPKActivity();
                     }
-                    mTakenImagePath = newFilename;
 
                     // 编码成base64，准备发送
                     String base64result = imageToBase64(newFilename);
-                    // Log.i(TAG2, "newFilename.w = " + Integer.toString(newImage.getWidth()));
-                    // Log.i(TAG2, "newFilename.h = " + Integer.toString(newImage.getHeight()));
-
                     sendPost(base64result);
-
-                    // FIXME:
-                    // 发送PM和VPN的请求POST，
-                    // 获取结果后，解析Json，
-                    // 然后进行图像裁减，
-                    // 保存图片路径
-                    mPhotoMasterImagePath = newFilename;
-                    mVPNImagePath = newFilename;
-
+                    
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -819,9 +807,6 @@ public class MainActivity extends AppCompatActivity {
 
     public void paintRect(int x1, int y1, int x2, int y2)
     {
-        // Log.i(TAG2, "predict original : " + mx1 + " " + my1 + " " + mx2 + " " + my2);
-        // Log.i(TAG2, "predict transfer : " + x1 + " " + y1 + " " + x2 + " " + y2);
-
         Paint mpaint = new Paint();
         mpaint.setColor(Color.RED);
         // mpaint.setAntiAlias(true);//去锯齿
@@ -1086,7 +1071,7 @@ public class MainActivity extends AppCompatActivity {
                     if (gx1 == 0 && gx2 == 0) {
                         createSessionForTakingPicture();
                     }
-                    Thread.sleep(500); // FXIME 需要加延时来保证POST取得box坐标
+                    Thread.sleep(1500); // FXIME 需要加延时来保证POST取得box坐标
 
                 } catch (InterruptedException e) {
                     e.printStackTrace();
@@ -1201,21 +1186,16 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onOrientationChanged(int orientation) {
             int screenOrientation = getResources().getConfiguration().orientation;
-
             if (((orientation >= 0) && (orientation < 45)) || (orientation > 315)) {    //设置竖屏
-                Log.d("Rotation", "Portrait " +String.valueOf(orientation));
                 mOrientation = 0;
                 mText = "当前是竖屏预览";
             } else if (orientation > 225 && orientation < 315) { //设置横屏
-                Log.d("Rotation", "Landscape " + String.valueOf(orientation));
                 mText = "当前是横屏预览";
                 mOrientation = 1;
             } else if (orientation > 45 && orientation < 135) {// 设置反向横屏
-                Log.d("Rotation", "Landscape " + String.valueOf(orientation));
                 mText = "当前是横屏预览";
                 mOrientation = 1;
             } else if (orientation > 135 && orientation < 225) { //反向竖屏
-                Log.d("Rotation", "Portrait " +String.valueOf(orientation));
                 mText = "当前是竖屏预览";
                 mOrientation = 0;
             }
@@ -1299,7 +1279,5 @@ public class MainActivity extends AppCompatActivity {
         float y = event.getY(0) - event.getY(1);
         return (float) Math.sqrt(x * x + y * y);
     }
-
-
 
 }
