@@ -95,7 +95,7 @@ public class MainActivity extends AppCompatActivity {
     private static final int CHEIGHT = 1080; // 这两个值是根据实测获得，FIXME
     private static final int CWIDTH = 1536; // 这两个值是根据实测获得，FIXME
 
-    private static final int AUTO_TAKE_TIMER = 3000000; // 单位毫秒，将这个数改为3000,则每3秒自动拍照预测一次
+    private static final int AUTO_TAKE_TIMER = 4000000; // 单位毫秒，将这个数改为3000,则每3秒自动拍照预测一次
 
     private static final int REQUEST_CAMERA_PERMISSION = 200;
     private static final SparseIntArray ORIENTATIONS = new SparseIntArray();
@@ -128,16 +128,18 @@ public class MainActivity extends AppCompatActivity {
     private Size mPictureSize;
 
     // 保存从server返回的原始坐标
-    private int mx1;
-    private int my1;
-    private int mx2;
-    private int my2;
+    private int mx1[] = new int[3];
+    private int my1[] = new int[3];
+    private int mx2[] = new int[3];
+    private int my2[] = new int[3];
 
     // 保存对原始坐标进行变换后的坐标
-    private int gx1;
-    private int gy1;
-    private int gx2;
-    private int gy2;
+    private int gx1[] = new int[3];
+    private int gy1[] = new int[3];
+    private int gx2[] = new int[3];
+    private int gy2[] = new int[3];
+
+    private int gz;
 
     private int mImageWidth;
     private int mImageHeight;
@@ -161,14 +163,12 @@ public class MainActivity extends AppCompatActivity {
 
     private int mOrientation = 0; // 0: portrait, 1: landscape
 
-    private String mLastPredictImagePath = null; // 上一次的预测图
-    private String mOriginalImagePath = null; // 预测图
-    private String mTakenImagePath = null; // 取景框1
-    private String mPhotoMasterImagePath = null; // 取影框2
-    private String mVPNImagePath = null; // 取景框3
+    private String mPredictedImagePath = null; // 预测图
+    private String mTakenImagePath = null; // 拍照图
 
     private String mText = "";
     private Rect mZoom = null;
+    private boolean mPredicting = true;
 
     // 屏向右x-，屏向左x+，屏向上y-，屏向下y+
     private final SensorEventListener mSensorEventListener = new SensorEventListener() {
@@ -204,14 +204,14 @@ public class MainActivity extends AppCompatActivity {
                                 if (Math.abs(deltaX) >= SENSITIVITY){
                                     Log.d("SENSOR_DELTA", "deltaX = " + deltaX);
                                     if (deltaX < 0) { // 手机屏向左偏
-                                        if (gy1 + PACE <= CWIDTH && gy2 + PACE <= CWIDTH) {
-                                            gy1 += PACE;
-                                            gy2 += PACE;
+                                        if ((gy1[0] + gy2[0]) / 2 + PACE <= CWIDTH) { // 确保预测框的中心不会跑出屏幕边缘
+                                            gy1[0] += PACE;
+                                            gy2[0] += PACE;
                                         }
                                     } else if (deltaX > 0) {
-                                        if (gy1 - PACE >= 0 && gy2 - PACE >= 0) {
-                                            gy1 -= PACE;
-                                            gy2 -= PACE;
+                                        if ((gy1[0] + gy2[0]) / 2 - PACE >= 0) { // 确保预测框的中心不会跑出屏幕边缘
+                                            gy1[0] -= PACE;
+                                            gy2[0] -= PACE;
                                         }
                                     }
                                 }
@@ -224,24 +224,19 @@ public class MainActivity extends AppCompatActivity {
                                 if (Math.abs(deltaY) >= SENSITIVITY){
                                     Log.d("SENSOR_DELTA", "new_sensory = " + deltaY);
                                     if (deltaY < 0) { // 屏幕向下偏
-                                        if (gx1 + PACE <= CHEIGHT && gx2 + PACE <= CHEIGHT) {
-                                            gx1 += PACE;
-                                            gx2 += PACE;
+                                        if ((gx1[0] + gx2[0]) / 2 + PACE <= CHEIGHT) { // 确保预测框的中心不会跑出屏幕边缘
+                                            gx1[0] += PACE;
+                                            gx2[0] += PACE;
                                         }
                                     } else if (deltaY > 0) { // 屏幕向上偏
-                                        if (gx1 - PACE >= 0 && gx2 - PACE >= 0) {
-                                            gx1 -= PACE;
-                                            gx2 -= PACE;
+                                        if ((gx1[0] + gx2[0]) / 2 - PACE >= 0) { // 确保预测框的中心不会跑出屏幕边缘
+                                            gx1[0] -= PACE;
+                                            gx2[0] -= PACE;
                                         }
                                     }
                                 }
                             }
                             sensorY = angley;
-
-                            // 横屏绕中心点旋转
-                            // if(gz != 0){
-                            //    Log.d("ANBLE", "angleZ = " + (gz - anglez));
-                            // }
 
                             sensorZ = anglez;
 
@@ -262,10 +257,23 @@ public class MainActivity extends AppCompatActivity {
         Intent intent = new Intent();
         intent.setClass(MainActivity.this, PKActivity.class);
         Bundle bundle = new Bundle();
-        bundle.putString("OriginalImagePath", mOriginalImagePath); // 原始取景
+        bundle.putString("PredictedImagePath", mPredictedImagePath); // 原始取景
         bundle.putString("TakenImagePath", mTakenImagePath); // 实际取景
-        bundle.putString("PhotoMasterImagePath", mPhotoMasterImagePath); // PhotoMaster取景
-        bundle.putString("VPNImagePath", mVPNImagePath); // VPN取景
+
+        bundle.putInt("Box0X1", gx1[0]);
+        bundle.putInt("Box0Y1", gy1[0]);
+        bundle.putInt("Box0X2", gx2[0]);
+        bundle.putInt("Box0Y2", gy2[0]);
+
+        bundle.putInt("Box1X1", gx1[1]);
+        bundle.putInt("Box1Y1", gy1[1]);
+        bundle.putInt("Box1X2", gx2[1]);
+        bundle.putInt("Box1Y2", gy2[1]);
+
+        bundle.putInt("Box2X1", gx1[2]);
+        bundle.putInt("Box2Y1", gy1[2]);
+        bundle.putInt("Box2X2", gx2[2]);
+        bundle.putInt("Box2Y2", gy2[2]);
 
         intent.putExtras(bundle);
         startActivity(intent);
@@ -290,7 +298,7 @@ public class MainActivity extends AppCompatActivity {
         mButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                createSessionForTakingPicture();
+                createSessionForTakingPicture(false);
                 Toast.makeText(MainActivity.this, "图片己保存", Toast.LENGTH_SHORT).show();
             }
         });
@@ -328,6 +336,10 @@ public class MainActivity extends AppCompatActivity {
         if (mTextureView.isAvailable()) {
             setupPreviewAndImageReader();
             openCamera();
+            Canvas canvas = mSurfaceHolder.lockCanvas();
+            canvas.restore();
+            mSurfaceHolder.unlockCanvasAndPost(canvas);
+
         } else {
             mTextureView.setSurfaceTextureListener(mTextureListener);
         }
@@ -406,7 +418,7 @@ public class MainActivity extends AppCompatActivity {
             new ImageReader.OnImageAvailableListener() {
                 @Override
                 public void onImageAvailable(ImageReader reader) {
-                    savePicture(reader);
+                    savePicture(reader, mPredicting);
                 }
             };
 
@@ -608,10 +620,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // 发送请求给相机设备进行拍照
-    protected void createSessionForTakingPicture() {
+    protected void createSessionForTakingPicture(boolean predict) {
         try {
             // imageReader.acquireLatestImage调用完成后需要close imageReader. 下次拍照需要重新实例化一个
             // imageReader
+            sensorZ = 0;
             if (mImageReader != null) {
                 mImageReader.close();
                 mImageReader = null;
@@ -624,6 +637,7 @@ public class MainActivity extends AppCompatActivity {
             outputSurfaces.add(mImageReader.getSurface());
             outputSurfaces.add(mPreviewSurface);
 
+            mPredicting = predict;
             if (mCameraDevice != null) {
                 mCameraDevice.createCaptureSession(outputSurfaces, mPictureSessionStateCallback,
                         mBackgroundHandler);
@@ -695,7 +709,7 @@ public class MainActivity extends AppCompatActivity {
         return filename;
     }
 
-    private void savePicture(ImageReader reader) {
+    private void savePicture(ImageReader reader, boolean predicting) {
 
         // 准备POST发送的临时图片名字，以时间命名
         String timeStamp = new SimpleDateFormat("MM-dd_HH:mm:ss.SSS",
@@ -766,20 +780,14 @@ public class MainActivity extends AppCompatActivity {
                     // 保存
                     String newFilename = saveScaledPicture(newImage);
 
-                    if (mLastPredictImagePath == null) { // 初始时只有预测图
-                        mLastPredictImagePath = newFilename;
+                    if (mPredictedImagePath == null || predicting) { // 初始时只有预测图，需要保存起来做为下次的裁减用图
+                        mPredictedImagePath = newFilename;
                     } else {
                         // 点击拍照时产生了拍照图,拍照图同时也是下一次的预测图
-                        // 发送PM和VPN的请求POST，
-                        // 获取结果后，解析Json，
-                        // 然后进行图像裁减，
-                        // 保存图片路径
+                        // 此时己经有了预测用图
                         mTakenImagePath = newFilename;
-                        mPhotoMasterImagePath = newFilename;
-                        mVPNImagePath = newFilename;
-                        mOriginalImagePath = mLastPredictImagePath;
-                        mLastPredictImagePath = newFilename;
                         gotoPKActivity();
+                        mPredictedImagePath = mTakenImagePath;
                     }
 
                     // 编码成base64，准备发送
@@ -815,8 +823,7 @@ public class MainActivity extends AppCompatActivity {
         mpaint.setStrokeWidth(10f);
 
         try {
-            Canvas canvas=new Canvas();
-            canvas = mSurfaceHolder.lockCanvas();
+            Canvas canvas = mSurfaceHolder.lockCanvas();
             canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR); //清掉上一次的画框。
             Rect r = new Rect(x1, y1, x2, y2);
             Log.d("RECT", "rect = " + x1 + " " + y1 + " " + x2 + " " + y2);
@@ -849,6 +856,9 @@ public class MainActivity extends AppCompatActivity {
                 mPredictEnterCenter = false;
             }
 
+            // 旋转画布
+            canvas.rotate(sensorZ, cameraCenter_x, cameraCenter_y);
+
             canvas.drawRect(r, mpaint);
 
             // 屏幕上写字
@@ -856,20 +866,20 @@ public class MainActivity extends AppCompatActivity {
             mpaint.setStrokeWidth(1f);
             mpaint.setStyle(Paint.Style.FILL);// 画笔实心
             mpaint.setColor(Color.BLUE);
-            canvas.drawText(mText, 100, 100, mpaint);
+            // canvas.drawText(mText, 100, 100, mpaint);
 
             // 根据取景框来的长宽来提示用户横竖屏
             // 画图坐标是以左上为原点，x为水平方向，y为垂直方向
             if (mOrientation == 0) { // 如果当前是横屏
-                if (my2 -my1 > mx2 - mx1) { // 取景框的 宽 > 高
+                if (my2[0] - my1[0] > mx2[0] - mx1[0]) { // 取景框的 宽 > 高
                     mpaint.setColor(Color.RED);
-                    canvas.drawText("请使用横屏拍摄", 100, 200, mpaint);
+                    // canvas.drawText("请使用横屏拍摄", 100, 200, mpaint);
                     // Toast.makeText(MainActivity.this, "请横屏拍摄", Toast.LENGTH_SHORT).show();
                 }
             } else {
-                if (my2 -my1 < mx2 - mx1) { // 取景框的 高 > 宽
+                if (my2[0] - my1[0] < mx2[0] - mx1[0]) { // 取景框的 高 > 宽
                     mpaint.setColor(Color.RED);
-                    canvas.drawText("请使用竖屏拍摄", 100, 200, mpaint); 
+                    // canvas.drawText("请使用竖屏拍摄", 100, 200, mpaint);
                     // Toast.makeText(MainActivity.this, "请竖屏拍摄", Toast.LENGTH_SHORT).show();
                 }
             }
@@ -947,7 +957,7 @@ public class MainActivity extends AppCompatActivity {
         try {
             // "results":[{"bbox":{"x1":123,"x2":424,"y1":183,"y2":491},"conf":"0.1255541890859604","name":"camarabox"}]}
             JSONObject jsonObject1 = new JSONObject(json);
-            // Log.i(TAG2, json);
+            Log.i("parsePostJson", json);
 
             JSONArray jsonArray = jsonObject1.getJSONArray("results"); // {"results":
             for (int i = 0; i < jsonArray.length(); i++) { // [
@@ -955,18 +965,18 @@ public class MainActivity extends AppCompatActivity {
 
                 //x1 ,y1, x2, y2
                 JSONObject bbox = jsonObject.getJSONObject("bbox"); // x1":123,"x2":424,"y1":183,"y2":491
-                mx1 = bbox.getInt("x1");
-                my1 = bbox.getInt("y1");
-                mx2 = bbox.getInt("x2");
-                my2 = bbox.getInt("y2");
+                mx1[i] = bbox.getInt("x1");
+                my1[i] = bbox.getInt("y1");
+                mx2[i] = bbox.getInt("x2");
+                my2[i] = bbox.getInt("y2");
 
-                Log.i("parsePostJson", mx1 + " " + my1 + " " + mx2 + " " + my2);
+                Log.d("parsePostJson", mx1[i] + " " + my1[i] + " " + mx2[i] + " " + my2[i]);
 
                 // 将横屏逆时针转90度，进行坐标变换，
-                gx1 = my1 * CHEIGHT / 480;
-                gy1 = (640 - mx2) * CWIDTH / 640;
-                gx2 = my2 * CHEIGHT / 480;
-                gy2 = (640 - mx1) * CWIDTH / 640;
+                gx1[i] = my1[i] * CHEIGHT / 480;
+                gy1[i] = (640 - mx2[i]) * CWIDTH / 640;
+                gx2[i] = my2[i] * CHEIGHT / 480;
+                gy2[i] = (640 - mx1[i]) * CWIDTH / 640;
 
                 // 将横屏顺时针转90度，进行坐标变换，
                 /*
@@ -974,7 +984,6 @@ public class MainActivity extends AppCompatActivity {
                 gy1 = (mx1) * mPreviewSize.getWidth() / 640;
                 gx2 = (480 - my1) * mPreviewSize.getHeight() / 480;
                 gy2 = (mx2) * mPreviewSize.getWidth() / 640;
-
                  */
             }
         } catch (Exception e) {
@@ -995,8 +1004,8 @@ public class MainActivity extends AppCompatActivity {
         public void run() {
             HttpURLConnection conn = null;
             try {
-                URL url = new URL("http://121.5.54.57:80/predict/camarabox/");
-
+                // URL url = new URL("http://121.5.54.57:80/predict/camarabox/");
+                URL url = new URL("http://121.5.54.57:80/predict/compareboxes/");
                 conn = (HttpURLConnection) url.openConnection();
 
                 String content = this.param.replace("+", "-");
@@ -1046,7 +1055,7 @@ public class MainActivity extends AppCompatActivity {
             // Log.d(TAG, "paintBox()");
             while (true) {
                 try {
-                    paintRect(gx1, gy1, gx2, gy2);
+                    paintRect(gx1[0], gy1[0], gx2[0], gy2[0]);
                     Thread.sleep(1);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
@@ -1068,8 +1077,8 @@ public class MainActivity extends AppCompatActivity {
             while (true) {
                 try {
                     Thread.sleep(500); // FXIME 需要加延时来保证camera is ready
-                    if (gx1 == 0 && gx2 == 0) {
-                        createSessionForTakingPicture();
+                    if (gx1[0] == 0 && gx2[0] == 0) {
+                        createSessionForTakingPicture(true);
                     }
                     Thread.sleep(1500); // FXIME 需要加延时来保证POST取得box坐标
 
@@ -1092,7 +1101,7 @@ public class MainActivity extends AppCompatActivity {
             while (true) {
                 try {
                     Thread.sleep(AUTO_TAKE_TIMER);
-                    createSessionForTakingPicture();
+                    createSessionForTakingPicture(true);
                     Thread.sleep(1000);
 
                 } catch (InterruptedException e) {
@@ -1121,7 +1130,7 @@ public class MainActivity extends AppCompatActivity {
             }
             while (true) {
 
-                if (gx1 > 0 && gy1 > 0) {
+                if (gx1[0] > 0 && gy1[0] > 0) {
                     try {
                         // Activity activity = getActivity();
                         // CameraManager manager = (CameraManager) activity.getSystemService(Context.CAMERA_SERVICE);
@@ -1136,10 +1145,10 @@ public class MainActivity extends AppCompatActivity {
                         int difH = m.height() - minH;
 
                         zoom_level++;
-                        gx1 -= (difW / 100 * (int) zoom_level) & 3;
-                        gy1 -= (difH / 100 * (int) zoom_level) & 3;
-                        gx2 += (difW / 100 * (int) zoom_level) & 3;
-                        gy2 += (difH / 100 * (int) zoom_level) & 3;
+                        gx1[0] -= (difW / 100 * (int) zoom_level) & 3;
+                        gy1[0] -= (difH / 100 * (int) zoom_level) & 3;
+                        gx2[0] += (difW / 100 * (int) zoom_level) & 3;
+                        gy2[0] += (difH / 100 * (int) zoom_level) & 3;
 
                         int cropW = difW / 100 * (int) zoom_level;
                         int cropH = difH / 100 * (int) zoom_level;
@@ -1230,16 +1239,16 @@ public class MainActivity extends AppCompatActivity {
 
                             if (current_finger_spacing > finger_spacing && maxzoom > zoom_level) {
                                 zoom_level++;
-                                gx1 -= (difW / 100 * (int) zoom_level) & 3;
-                                gy1 -= (difH / 100 * (int) zoom_level) & 3;
-                                gx2 += (difW / 100 * (int) zoom_level) & 3;
-                                gy2 += (difH / 100 * (int) zoom_level) & 3;
+                                gx1[0] -= (difW / 100 * (int) zoom_level) & 3;
+                                gy1[0] -= (difH / 100 * (int) zoom_level) & 3;
+                                gx2[0] += (difW / 100 * (int) zoom_level) & 3;
+                                gy2[0] += (difH / 100 * (int) zoom_level) & 3;
                             } else if (current_finger_spacing < finger_spacing && zoom_level > 1) {
                                 zoom_level--;
-                                gx1 += (difW / 100 * (int) zoom_level) & 3;
-                                gy1 += (difH / 100 * (int) zoom_level) & 3;
-                                gx2 -= (difW / 100 * (int) zoom_level) & 3;
-                                gy2 -= (difH / 100 * (int) zoom_level) & 3;
+                                gx1[0] += (difW / 100 * (int) zoom_level) & 3;
+                                gy1[0] += (difH / 100 * (int) zoom_level) & 3;
+                                gx2[0] -= (difW / 100 * (int) zoom_level) & 3;
+                                gy2[0] -= (difH / 100 * (int) zoom_level) & 3;
                             }
 
                             int cropW = difW / 100 * (int) zoom_level;
