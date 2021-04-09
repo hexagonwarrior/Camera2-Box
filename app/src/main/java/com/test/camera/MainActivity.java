@@ -56,6 +56,7 @@ import android.view.SurfaceView;
 import android.view.TextureView;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.ImageButton;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -89,13 +90,14 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "Camera2Test";
     private static final String TAG2 = "MINMAX";
-    private static final int PACE = 5;
+    private static final int PACE = 20;
     private static final double SENSITIVITY = 0.2; // SENSOR 陀螺仪的敏感度，值越小，敏感度越高，偿试过0.5，0.2，最后决定选0.1
 
-    private static final int CHEIGHT = 1080; // 这两个值是根据实测获得，FIXME
-    private static final int CWIDTH = 1536; // 这两个值是根据实测获得，FIXME
+    // 小米6X的默认值
+    private static int CHEIGHT = 1080; // 这两个值是根据实测获得，FIXME
+    private static int CWIDTH = 1536; // 这两个值是根据实测获得，FIXME
 
-    private static final int AUTO_TAKE_TIMER = 4000000; // 单位毫秒，将这个数改为3000,则每3秒自动拍照预测一次
+    private static final int AUTO_TAKE_TIMER = 4000; // 单位毫秒，将这个数改为3000,则每3秒自动拍照预测一次
 
     private static final int REQUEST_CAMERA_PERMISSION = 200;
     private static final SparseIntArray ORIENTATIONS = new SparseIntArray();
@@ -112,6 +114,7 @@ public class MainActivity extends AppCompatActivity {
 
     @SuppressWarnings("FieldCanBeLocal")
     private TextView mButton;
+    private ImageButton mButtonPredict;
 
     private Surface mPreviewSurface;
     private ImageReader mImageReader;
@@ -151,10 +154,11 @@ public class MainActivity extends AppCompatActivity {
     private float angle[] = new float[3];
     private static final float NS2S = 1.0f / 1000000000.0f;
     private float sensorX = 0, sensorY = 0, sensorZ = 0; // sensor三个轴的偏斜
+    private float mDegreeZ = 0;
 
     // zoom code
     private float finger_spacing = 0;
-    private int zoom_level = 1;
+    private float zoom_level = 1;
     private CameraCaptureSession mPreviewSession = null;
     private CaptureRequest.Builder mPreviewBuilder = null;
     private boolean mPredictEnterCenter = false;
@@ -203,17 +207,33 @@ public class MainActivity extends AppCompatActivity {
                                 float deltaX = sensorX - anglex; // 计算新的偏斜
                                 if (Math.abs(deltaX) >= SENSITIVITY){
                                     Log.d("SENSOR_DELTA", "deltaX = " + deltaX);
-                                    if (deltaX < 0) { // 手机屏向左偏
-                                        if ((gy1[0] + gy2[0]) / 2 + PACE <= CWIDTH) { // 确保预测框的中心不会跑出屏幕边缘
-                                            gy1[0] += PACE;
-                                            gy2[0] += PACE;
+                                    //if (mOrientation == 1) {
+                                        if (deltaX < 0) { // 手机屏向左偏
+                                            if ((gy1[0] + gy2[0]) / 2 + PACE <= CWIDTH) { // 确保预测框的中心不会跑出屏幕边缘
+                                                gy1[0] += PACE;
+                                                gy2[0] += PACE;
+                                            }
+                                        } else if (deltaX > 0) {
+                                            if ((gy1[0] + gy2[0]) / 2 - PACE >= 0) { // 确保预测框的中心不会跑出屏幕边缘
+                                                gy1[0] -= PACE;
+                                                gy2[0] -= PACE;
+                                            }
                                         }
-                                    } else if (deltaX > 0) {
-                                        if ((gy1[0] + gy2[0]) / 2 - PACE >= 0) { // 确保预测框的中心不会跑出屏幕边缘
-                                            gy1[0] -= PACE;
-                                            gy2[0] -= PACE;
+                                        /*
+                                    } else {
+                                        if (deltaX < 0) { // 手机屏向左偏
+                                            if ((gx1[0] + gx2[0]) / 2 - PACE >= 0) { // 确保预测框的中心不会跑出屏幕边缘
+                                                gx1[0] -= PACE;
+                                                gx2[0] -= PACE;
+                                            }
+                                        } else if (deltaX > 0) {
+                                            if ((gx1[0] + gx2[0]) / 2 + PACE <= CHEIGHT) { // 确保预测框的中心不会跑出屏幕边缘
+                                                gx1[0] += PACE;
+                                                gx2[0] += PACE;
+                                            }
                                         }
-                                    }
+
+                                    } */
                                 }
                             }
                             sensorX = anglex;
@@ -223,22 +243,42 @@ public class MainActivity extends AppCompatActivity {
                                 float deltaY = sensorY - angley;
                                 if (Math.abs(deltaY) >= SENSITIVITY){
                                     Log.d("SENSOR_DELTA", "new_sensory = " + deltaY);
-                                    if (deltaY < 0) { // 屏幕向下偏
-                                        if ((gx1[0] + gx2[0]) / 2 + PACE <= CHEIGHT) { // 确保预测框的中心不会跑出屏幕边缘
-                                            gx1[0] += PACE;
-                                            gx2[0] += PACE;
+                                    //if (mOrientation == 1) {
+                                        if (deltaY < 0) { // 屏幕向下偏
+                                            if ((gx1[0] + gx2[0]) / 2 + PACE <= CHEIGHT) { // 确保预测框的中心不会跑出屏幕边缘
+                                                gx1[0] += PACE;
+                                                gx2[0] += PACE;
+                                            }
+                                        } else if (deltaY > 0) { // 屏幕向上偏
+                                            if ((gx1[0] + gx2[0]) / 2 - PACE >= 0) { // 确保预测框的中心不会跑出屏幕边缘
+                                                gx1[0] -= PACE;
+                                                gx2[0] -= PACE;
+                                            }
                                         }
-                                    } else if (deltaY > 0) { // 屏幕向上偏
-                                        if ((gx1[0] + gx2[0]) / 2 - PACE >= 0) { // 确保预测框的中心不会跑出屏幕边缘
-                                            gx1[0] -= PACE;
-                                            gx2[0] -= PACE;
+                                        /*
+                                    } else {
+                                        if (deltaY < 0) { // 屏幕向下偏
+                                            if ((gy1[0] + gy2[0]) / 2 + PACE <= CWIDTH) { // 确保预测框的中心不会跑出屏幕边缘
+                                                gy1[0] += PACE;
+                                                gy2[0] += PACE;
+                                            }
+                                        } else if (deltaY > 0) { // 屏幕向上偏
+                                            if ((gy1[0] + gy2[0]) / 2 - PACE >= 0) { // 确保预测框的中心不会跑出屏幕边缘
+                                                gy1[0] -= PACE;
+                                                gy2[0] -= PACE;
+                                            }
                                         }
-                                    }
+                                    } */
                                 }
                             }
                             sensorY = angley;
 
+                            if (sensorZ != 0) {
+                                float deltaZ = sensorZ - anglez;
+                                mDegreeZ += deltaZ;
+                            }
                             sensorZ = anglez;
+                            // Log.d("sensorZ", "" + sensorZ);
 
                         }
                         timestamp = sensorEvent.timestamp;
@@ -300,6 +340,16 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View v) {
                 createSessionForTakingPicture(false);
                 Toast.makeText(MainActivity.this, "图片己保存", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        mButtonPredict = findViewById(R.id.info);
+        mButtonPredict.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                mDegreeZ = 0;
+                createSessionForTakingPicture(true);
+                Toast.makeText(MainActivity.this, "获取预测框", Toast.LENGTH_SHORT).show();
             }
         });
 
@@ -541,9 +591,11 @@ public class MainActivity extends AppCompatActivity {
                 SurfaceTexture surfaceTexture = mTextureView.getSurfaceTexture();
                 surfaceTexture.setDefaultBufferSize(mPreviewSize.getWidth(),
                         mPreviewSize.getHeight());
+                CWIDTH = mPreviewSize.getWidth() / 3;
+                CHEIGHT = mPreviewSize.getHeight() / 3;
 
-                // Log.i(TAG, "mPreviewSize.getWidth = " + Integer.toString(mPreviewSize.getWidth()));
-                // Log.i(TAG, "mPreviewSize.getHeight = " + Integer.toString(mPreviewSize.getHeight()));
+                Log.i(TAG, "mPreviewSize.getWidth = " + Integer.toString(mPreviewSize.getWidth()) + " " + CWIDTH);
+                Log.i(TAG, "mPreviewSize.getHeight = " + Integer.toString(mPreviewSize.getHeight()) + " " + CHEIGHT);
 
                 mPreviewSurface = new Surface(surfaceTexture);
 
@@ -624,7 +676,8 @@ public class MainActivity extends AppCompatActivity {
         try {
             // imageReader.acquireLatestImage调用完成后需要close imageReader. 下次拍照需要重新实例化一个
             // imageReader
-            sensorZ = 0;
+
+
             if (mImageReader != null) {
                 mImageReader.close();
                 mImageReader = null;
@@ -857,7 +910,7 @@ public class MainActivity extends AppCompatActivity {
             }
 
             // 旋转画布
-            canvas.rotate(sensorZ, cameraCenter_x, cameraCenter_y);
+            canvas.rotate(-mDegreeZ, cameraCenter_x, cameraCenter_y);
 
             canvas.drawRect(r, mpaint);
 
@@ -1097,10 +1150,12 @@ public class MainActivity extends AppCompatActivity {
     public class TimerRun implements Runnable {
         @Override
         public void run() {
-            Log.d(TAG, "TimerRun()");
             while (true) {
                 try {
                     Thread.sleep(AUTO_TAKE_TIMER);
+
+                    mDegreeZ = 0;
+
                     createSessionForTakingPicture(true);
                     Thread.sleep(1000);
 
